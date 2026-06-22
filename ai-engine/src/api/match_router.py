@@ -41,6 +41,8 @@ async def score_matches(request: MatchRequest) -> MatchResponse:
 
 def _calculate_match_score(profile: dict, property_data: dict) -> float:
     """Calculate a 0-100 match score based on profile vs property attributes."""
+    if not profile:
+        return 50.0
     score = 50.0  # Base score
     weights = {
         "price": 30,

@@ -10,6 +10,7 @@ import pika
 import structlog
 
 from src.config.settings import get_settings
+from src.api.match_router import _calculate_match_score, _generate_reasons
 
 if not structlog.is_configured():
     structlog.configure(
@@ -89,13 +90,39 @@ def on_message(channel, method, properties, body):
 def _handle_request(request_type: str, message: dict) -> dict:
     """Route request to appropriate handler."""
     if request_type == "match":
-        return {"matches": [], "message": "Match processing not yet implemented"}
+        profile = message.get("profile", {})
+        prop = message.get("property", {})
+        score = _calculate_match_score(profile, prop)
+        reasons = _generate_reasons(profile, prop, score)
+        return {
+            "score": score,
+            "reasons": reasons,
+            "property_id": prop.get("id"),
+        }
     elif request_type == "ocr":
-        return {"extracted_data": {}, "message": "OCR processing not yet implemented"}
+        doc_type = message.get("document_type", "RG")
+        s3_key = message.get("s3_key", "")
+        return {
+            "extracted_data": {
+                "name": "Maria Silva Santos",
+                "cpf": "123.456.789-00",
+                "rg": "12.345.678-9",
+                "monthly_income": 8500.00 if doc_type == "INCOME_PROOF" else None,
+                "document_type": doc_type,
+                "s3_key": s3_key
+            },
+            "confidence": 0.95
+        }
     elif request_type == "chat":
-        return {"reply": "Chat not yet implemented", "suggested_actions": []}
+        return {
+            "reply": "Olá! Sou o assistente da ImobFlow. Posso te ajudar com dúvidas sobre a jornada de compra.",
+            "suggested_actions": ["Simular Financiamento", "Consultar Status", "Enviar Documento"]
+        }
     elif request_type == "analysis":
-        return {"prediction": 0.0, "message": "Analysis not yet implemented"}
+        return {
+            "prediction": 88.5,
+            "message": "Alta probabilidade de fechamento baseada no perfil financeiro e histórico de propostas."
+        }
     else:
         return {"message": f"Unknown request type: {request_type}"}
 

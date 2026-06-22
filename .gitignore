@@ -12,6 +12,8 @@ ai-engine/.mypy_cache/
 ai-engine/.pytest_cache/
 ai-engine/.coverage
 ai-engine/dist/
+ai-engine/venv/
+venv/
 *.pyc
 
 # === Node / Next.js ===
