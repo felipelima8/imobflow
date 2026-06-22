@@ -1,0 +1,15 @@
+package com.imobflow.journey.model;
+
+public enum JourneyStatus {
+    STARTED,
+    PROPERTY_SELECTED,
+    DOCUMENTS_PENDING,
+    DOCUMENTS_APPROVED,
+    PROPOSAL_SENT,
+    NEGOTIATING,
+    CONTRACT_SIGNED,
+    FINANCING_APPROVED,
+    DEED_SIGNED,
+    COMPLETED,
+    CANCELLED
+}

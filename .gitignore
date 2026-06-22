@@ -1,0 +1,48 @@
+# === Java / Maven ===
+backend/target/
+backend/.m2/
+*.class
+*.jar
+*.war
+
+# === Python ===
+ai-engine/__pycache__/
+ai-engine/.ruff_cache/
+ai-engine/.mypy_cache/
+ai-engine/.pytest_cache/
+ai-engine/.coverage
+ai-engine/dist/
+*.pyc
+
+# === Node / Next.js ===
+node_modules/
+frontend/.next/
+frontend/coverage/
+mobile/.expo/
+
+# === IDE ===
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+
+# === Environment ===
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# === Docker ===
+infra/pgdata/
+infra/redisdata/
+infra/rabbitmqdata/
+infra/miniodata/
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === Logs ===
+*.log
+logs/
