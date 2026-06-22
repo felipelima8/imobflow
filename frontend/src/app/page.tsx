@@ -1,33 +1,198 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { api, Customer, Property, Journey } from "../lib/api";
+
+const TENANTS = [
+  { id: "00000000-0000-0000-0000-000000000001", name: "Acme Real Estate (Tenant 1)" },
+  { id: "00000000-0000-0000-0000-000000000002", name: "ImobCorp SaaS (Tenant 2)" },
+];
 
 export default function Home() {
-  const [activeStep, setActiveStep] = useState(2);
+  const [activeTab, setActiveTab] = useState<"customers" | "properties" | "journeys">("customers");
+  const [tenant, setTenant] = useState("");
   const [apiStatus, setApiStatus] = useState<"loading" | "online" | "offline">("loading");
 
+  // Domain Lists
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [journeys, setJourneys] = useState<Journey[]>([]);
+
+  // Selected Journey for Detail/Timeline View
+  const [selectedJourney, setSelectedJourney] = useState<Journey | null>(null);
+
+  // Forms State
+  const [customerForm, setCustomerForm] = useState({ name: "", email: "", phone: "", cpf: "", monthlyIncome: 5000, fgtsBalance: 20000 });
+  const [propertyForm, setPropertyForm] = useState({ title: "", type: "APARTMENT", price: 350000, bedrooms: 2, addressCity: "São Paulo" });
+  const [journeyForm, setJourneyForm] = useState({ customerId: "", propertyId: "" });
+
+  const [notification, setNotification] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  // Initialize Tenant
   useEffect(() => {
-    // Check backend health
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("imobflow_tenant_id") || TENANTS[0].id;
+      setTenant(stored);
+      localStorage.setItem("imobflow_tenant_id", stored);
+    }
+  }, []);
+
+  // Fetch Data when Tenant or active tab changes
+  useEffect(() => {
+    if (!tenant) return;
+
+    // Check backend health first
     fetch("http://localhost:8080/actuator/health")
       .then((res) => {
         if (res.ok) setApiStatus("online");
         else setApiStatus("offline");
       })
       .catch(() => setApiStatus("offline"));
-  }, []);
 
-  const timelineSteps = [
-    { number: 1, title: "Imóvel Escolhido", desc: "Apartamento Jardins - R$ 850.000", status: "completed" },
-    { number: 2, title: "Envio de Documentos", desc: "RG, CPF e Comprovante de Renda", status: "completed" },
-    { number: 3, title: "Análise Cadastral e Risco", desc: "IA Engine processando certidões", status: "active" },
-    { number: 4, title: "Simulação e Crédito", desc: "Cenários de financiamento multi-banco", status: "pending" },
-    { number: 5, title: "Escritura & Chaves", desc: "Assinatura do contrato de compra e venda", status: "pending" },
-  ];
+    refreshData();
+  }, [tenant]);
+
+  const refreshData = async () => {
+    try {
+      const custData = await api.customers.list();
+      setCustomers(custData.content || []);
+
+      const propData = await api.properties.list();
+      setProperties(propData.content || []);
+
+      // Mock broker ID for demo purposes
+      const mockBrokerId = "00000000-0000-0000-0000-000000000009";
+      const journeyData = await api.journeys.list(mockBrokerId);
+      const list = journeyData.content || [];
+      setJourneys(list);
+      
+      if (list.length > 0) {
+        setSelectedJourney(list[0]);
+      } else {
+        setSelectedJourney(null);
+      }
+    } catch (err: any) {
+      console.error("Error loading data:", err.message);
+    }
+  };
+
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 4000);
+  };
+
+  const handleTenantChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const nextTenant = e.target.value;
+    setTenant(nextTenant);
+    localStorage.setItem("imobflow_tenant_id", nextTenant);
+    showToast(`Tenant alterado para: ${TENANTS.find(t => t.id === nextTenant)?.name}`);
+  };
+
+  // Submit Customer
+  const handleCreateCustomer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const created = await api.customers.create({
+        ...customerForm,
+        status: "LEAD",
+      });
+      setCustomers([...customers, created]);
+      setCustomerForm({ name: "", email: "", phone: "", cpf: "", monthlyIncome: 5000, fgtsBalance: 20000 });
+      showToast("Cliente criado com sucesso!");
+      refreshData();
+    } catch (err: any) {
+      showToast(err.message, "error");
+    }
+  };
+
+  // Submit Property
+  const handleCreateProperty = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const created = await api.properties.create({
+        ...propertyForm,
+        status: "AVAILABLE",
+      });
+      setProperties([...properties, created]);
+      setPropertyForm({ title: "", type: "APARTMENT", price: 350000, bedrooms: 2, addressCity: "São Paulo" });
+      showToast("Imóvel cadastrado com sucesso!");
+      refreshData();
+    } catch (err: any) {
+      showToast(err.message, "error");
+    }
+  };
+
+  // Submit Journey
+  const handleCreateJourney = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!journeyForm.customerId) {
+      showToast("Por favor, selecione um cliente", "error");
+      return;
+    }
+    try {
+      const mockBrokerId = "00000000-0000-0000-0000-000000000009";
+      const created = await api.journeys.create({
+        customerId: journeyForm.customerId,
+        propertyId: journeyForm.propertyId || undefined,
+        brokerId: mockBrokerId,
+      });
+      setJourneys([...journeys, created]);
+      setSelectedJourney(created);
+      setJourneyForm({ customerId: "", propertyId: "" });
+      showToast("Jornada de compra iniciada!");
+      refreshData();
+    } catch (err: any) {
+      showToast(err.message, "error");
+    }
+  };
+
+  const handleUpdateJourneyStatus = async (id: string, nextStatus: string) => {
+    try {
+      const updated = await api.journeys.updateStatus(id, nextStatus);
+      setJourneys(journeys.map(j => j.id === id ? updated : j));
+      if (selectedJourney?.id === id) {
+        setSelectedJourney(updated);
+      }
+      showToast(`Status da jornada atualizado para ${nextStatus}`);
+    } catch (err: any) {
+      showToast(err.message, "error");
+    }
+  };
+
+  // Helper for timeline rendering
+  const getTimelineSteps = (status: string) => {
+    const steps = [
+      { num: 1, title: "Jornada Iniciada", active: true },
+      { num: 2, title: "Análise Cadastral (IA)", active: ["ANALYSIS", "CREDIT_APPROVED", "COMPLETED"].includes(status) },
+      { num: 3, title: "Crédito Aprovado", active: ["CREDIT_APPROVED", "COMPLETED"].includes(status) },
+      { num: 4, title: "Contrato Assinado", active: ["COMPLETED"].includes(status) },
+    ];
+    return steps;
+  };
 
   return (
     <div className="animate-fade-in" style={{ padding: "2rem", maxWidth: "1200px", margin: "0 auto" }}>
+      {/* Toast Notification */}
+      {notification && (
+        <div style={{
+          position: "fixed",
+          top: "20px",
+          right: "20px",
+          padding: "1rem 1.5rem",
+          borderRadius: "var(--radius-md)",
+          background: notification.type === "success" ? "var(--color-success)" : "var(--color-danger)",
+          color: "white",
+          zIndex: 1000,
+          boxShadow: "var(--shadow-lg)",
+          fontWeight: "bold",
+          animation: "fadeIn 0.2s ease"
+        }}>
+          {notification.message}
+        </div>
+      )}
+
       {/* Header */}
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4rem" }}>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "3rem", flexWrap: "wrap", gap: "1rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
           <div style={{
             width: "40px",
@@ -41,75 +206,373 @@ export default function Home() {
             fontSize: "1.25rem",
             color: "white"
           }}>IF</div>
-          <h1 style={{ fontSize: "1.5rem", fontWeight: "800", background: "linear-gradient(to right, #fff, var(--text-secondary))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>ImobFlow</h1>
+          <div>
+            <h1 style={{ fontSize: "1.5rem", fontWeight: "800" }}>ImobFlow</h1>
+            <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>SaaS Multi-tenant Real Estate Dashboard</p>
+          </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <span style={{
-            width: "8px",
-            height: "8px",
-            borderRadius: "50%",
-            backgroundColor: apiStatus === "online" ? "var(--color-success)" : apiStatus === "offline" ? "var(--color-danger)" : "var(--color-warning)"
-          }}></span>
-          <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-            Backend: {apiStatus}
-          </span>
+
+        {/* Tenant Selector & Status */}
+        <div style={{ display: "flex", alignItems: "center", gap: "1.5rem", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+            <span className="label">Selecione a Imobiliária (RLS Tenant)</span>
+            <select 
+              value={tenant} 
+              onChange={handleTenantChange}
+              style={{
+                background: "var(--bg-secondary)",
+                border: "1px solid var(--glass-border)",
+                color: "white",
+                padding: "0.5rem 1rem",
+                borderRadius: "var(--radius-sm)",
+                outline: "none",
+                cursor: "pointer"
+              }}
+            >
+              {TENANTS.map(t => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", alignSelf: "flex-end", height: "40px" }}>
+            <span style={{
+              width: "8px",
+              height: "8px",
+              borderRadius: "50%",
+              backgroundColor: apiStatus === "online" ? "var(--color-success)" : apiStatus === "offline" ? "var(--color-danger)" : "var(--color-warning)"
+            }}></span>
+            <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", textTransform: "uppercase" }}>
+              API: {apiStatus}
+            </span>
+          </div>
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section style={{ textAlign: "center", marginBottom: "5rem" }}>
-        <span style={{
-          background: "rgba(99, 102, 241, 0.1)",
-          border: "1px solid rgba(99, 102, 241, 0.2)",
-          padding: "0.5rem 1rem",
-          borderRadius: "var(--radius-full)",
-          fontSize: "0.85rem",
-          fontWeight: "600",
-          color: "var(--color-accent)",
-          display: "inline-block",
-          marginBottom: "1.5rem"
-        }}>
-          🚀 Proposta de Valor Exclusiva — O Comprador no Centro
-        </span>
-        <h2 style={{ fontSize: "3.5rem", lineHeight: "1.1", marginBottom: "1.5rem", fontWeight: "800" }}>
-          A jornada de compra de imóveis,<br />
-          <span style={{ background: "linear-gradient(to right, var(--color-accent), var(--color-secondary))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-            descomplicada e guiada por IA.
-          </span>
-        </h2>
-        <p style={{ color: "var(--text-secondary)", fontSize: "1.15rem", maxWidth: "650px", margin: "0 auto 2.5rem auto", lineHeight: "1.6" }}>
-          Substitua planilhas e e-mails por uma timeline transparente e interativa. Economize tempo de corretores e advogados usando inteligência artificial.
-        </p>
-        <div style={{ display: "flex", gap: "1rem", justifyContent: "center" }}>
-          <button className="btn btn-primary" onClick={() => window.open("/api-docs", "_blank")}>Documentação da API</button>
-          <button className="btn btn-secondary">Acessar Painel do Corretor</button>
-        </div>
-      </section>
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: "1rem", marginBottom: "2rem", borderBottom: "1px solid var(--glass-border)", paddingBottom: "0.5rem" }}>
+        {(["customers", "properties", "journeys"] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            style={{
+              background: "none",
+              border: "none",
+              color: activeTab === tab ? "var(--color-accent)" : "var(--text-secondary)",
+              fontSize: "1.1rem",
+              fontWeight: "600",
+              cursor: "pointer",
+              padding: "0.5rem 1rem",
+              borderBottom: activeTab === tab ? "2px solid var(--color-accent)" : "none",
+              textTransform: "capitalize",
+              transition: "all 0.2s ease"
+            }}
+          >
+            {tab === "customers" ? "Clientes (Leads)" : tab === "properties" ? "Imóveis" : "Jornadas"}
+          </button>
+        ))}
+      </div>
 
-      {/* Interactive Journey Demo */}
-      <section className="card" style={{ marginBottom: "5rem", padding: "2.5rem" }}>
-        <h3 style={{ fontSize: "1.5rem", marginBottom: "2rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          📍 Timeline da Jornada do Comprador
-        </h3>
+      {/* Tab Contents */}
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "2rem", marginBottom: "3rem" }}>
         
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1.5rem" }}>
-          {timelineSteps.map((step, idx) => {
-            const isActive = idx === activeStep;
-            const isCompleted = idx < activeStep;
-            return (
+        {/* Left Side: Table List */}
+        <div className="card">
+          {activeTab === "customers" && (
+            <div>
+              <h3 style={{ marginBottom: "1.5rem" }}>👥 Clientes Cadastrados</h3>
+              {customers.length === 0 ? (
+                <p style={{ color: "var(--text-secondary)" }}>Nenhum cliente cadastrado neste tenant.</p>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid var(--glass-border)", color: "var(--text-secondary)" }}>
+                        <th style={{ padding: "0.75rem" }}>Nome</th>
+                        <th style={{ padding: "0.75rem" }}>E-mail</th>
+                        <th style={{ padding: "0.75rem" }}>Renda</th>
+                        <th style={{ padding: "0.75rem" }}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {customers.map(c => (
+                        <tr key={c.id} style={{ borderBottom: "1px solid var(--glass-border)" }}>
+                          <td style={{ padding: "0.75rem", fontWeight: "600" }}>{c.name}</td>
+                          <td style={{ padding: "0.75rem", color: "var(--text-secondary)" }}>{c.email || "N/A"}</td>
+                          <td style={{ padding: "0.75rem" }}>R$ {c.monthlyIncome?.toLocaleString("pt-BR") || "0"}</td>
+                          <td style={{ padding: "0.75rem" }}>
+                            <span style={{
+                              background: "rgba(99, 102, 241, 0.15)",
+                              color: "var(--color-accent)",
+                              padding: "0.25rem 0.5rem",
+                              borderRadius: "4px",
+                              fontSize: "0.75rem"
+                            }}>{c.status}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === "properties" && (
+            <div>
+              <h3 style={{ marginBottom: "1.5rem" }}>🏢 Imóveis Disponíveis</h3>
+              {properties.length === 0 ? (
+                <p style={{ color: "var(--text-secondary)" }}>Nenhum imóvel cadastrado neste tenant.</p>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid var(--glass-border)", color: "var(--text-secondary)" }}>
+                        <th style={{ padding: "0.75rem" }}>Título</th>
+                        <th style={{ padding: "0.75rem" }}>Cidade</th>
+                        <th style={{ padding: "0.75rem" }}>Preço</th>
+                        <th style={{ padding: "0.75rem" }}>Tipo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {properties.map(p => (
+                        <tr key={p.id} style={{ borderBottom: "1px solid var(--glass-border)" }}>
+                          <td style={{ padding: "0.75rem", fontWeight: "600" }}>{p.title}</td>
+                          <td style={{ padding: "0.75rem", color: "var(--text-secondary)" }}>{p.addressCity || "N/A"}</td>
+                          <td style={{ padding: "0.75rem" }}>R$ {p.price?.toLocaleString("pt-BR")}</td>
+                          <td style={{ padding: "0.75rem" }}>{p.type}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === "journeys" && (
+            <div>
+              <h3 style={{ marginBottom: "1.5rem" }}>📍 Jornadas de Compra Ativas</h3>
+              {journeys.length === 0 ? (
+                <p style={{ color: "var(--text-secondary)" }}>Nenhuma jornada iniciada neste tenant.</p>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid var(--glass-border)", color: "var(--text-secondary)" }}>
+                        <th style={{ padding: "0.75rem" }}>Cliente</th>
+                        <th style={{ padding: "0.75rem" }}>Imóvel ID</th>
+                        <th style={{ padding: "0.75rem" }}>Status</th>
+                        <th style={{ padding: "0.75rem" }}>Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {journeys.map(j => {
+                        const clientName = customers.find(c => c.id === j.customerId)?.name || j.customerId.substring(0, 8);
+                        return (
+                          <tr 
+                            key={j.id} 
+                            style={{ 
+                              borderBottom: "1px solid var(--glass-border)",
+                              background: selectedJourney?.id === j.id ? "rgba(99, 102, 241, 0.05)" : "transparent",
+                              cursor: "pointer"
+                            }}
+                            onClick={() => setSelectedJourney(j)}
+                          >
+                            <td style={{ padding: "0.75rem", fontWeight: "600" }}>{clientName}</td>
+                            <td style={{ padding: "0.75rem", color: "var(--text-secondary)" }}>{j.propertyId ? j.propertyId.substring(0, 8) : "Nenhum"}</td>
+                            <td style={{ padding: "0.75rem" }}>
+                              <span style={{
+                                background: j.status === "COMPLETED" ? "rgba(16, 185, 129, 0.15)" : "rgba(245, 158, 11, 0.15)",
+                                color: j.status === "COMPLETED" ? "var(--color-success)" : "var(--color-warning)",
+                                padding: "0.25rem 0.5rem",
+                                borderRadius: "4px",
+                                fontSize: "0.75rem",
+                                fontWeight: "bold"
+                              }}>{j.status}</span>
+                            </td>
+                            <td style={{ padding: "0.75rem" }}>
+                              <div style={{ display: "flex", gap: "0.5rem" }} onClick={e => e.stopPropagation()}>
+                                <button 
+                                  className="btn btn-secondary" 
+                                  style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
+                                  onClick={() => handleUpdateJourneyStatus(j.id, "CREDIT_APPROVED")}
+                                >
+                                  Aprovar
+                                </button>
+                                <button 
+                                  className="btn btn-primary" 
+                                  style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
+                                  onClick={() => handleUpdateJourneyStatus(j.id, "COMPLETED")}
+                                >
+                                  Finalizar
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Right Side: Action Forms */}
+        <div className="card">
+          {activeTab === "customers" && (
+            <form onSubmit={handleCreateCustomer}>
+              <h3 style={{ marginBottom: "1.25rem" }}>➕ Cadastrar Cliente</h3>
+              <div className="input-group">
+                <label className="label">Nome Completo</label>
+                <input 
+                  type="text" 
+                  className="input" 
+                  value={customerForm.name}
+                  onChange={e => setCustomerForm({ ...customerForm, name: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="input-group">
+                <label className="label">E-mail</label>
+                <input 
+                  type="email" 
+                  className="input" 
+                  value={customerForm.email}
+                  onChange={e => setCustomerForm({ ...customerForm, email: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="input-group">
+                <label className="label">Renda Mensal</label>
+                <input 
+                  type="number" 
+                  className="input" 
+                  value={customerForm.monthlyIncome}
+                  onChange={e => setCustomerForm({ ...customerForm, monthlyIncome: Number(e.target.value) })}
+                  required
+                />
+              </div>
+              <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Criar Cliente</button>
+            </form>
+          )}
+
+          {activeTab === "properties" && (
+            <form onSubmit={handleCreateProperty}>
+              <h3 style={{ marginBottom: "1.25rem" }}>➕ Cadastrar Imóvel</h3>
+              <div className="input-group">
+                <label className="label">Título do Imóvel</label>
+                <input 
+                  type="text" 
+                  className="input" 
+                  value={propertyForm.title}
+                  onChange={e => setPropertyForm({ ...propertyForm, title: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="input-group">
+                <label className="label">Preço de Venda</label>
+                <input 
+                  type="number" 
+                  className="input" 
+                  value={propertyForm.price}
+                  onChange={e => setPropertyForm({ ...propertyForm, price: Number(e.target.value) })}
+                  required
+                />
+              </div>
+              <div className="input-group">
+                <label className="label">Cidade</label>
+                <input 
+                  type="text" 
+                  className="input" 
+                  value={propertyForm.addressCity}
+                  onChange={e => setPropertyForm({ ...propertyForm, addressCity: e.target.value })}
+                  required
+                />
+              </div>
+              <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Cadastrar Imóvel</button>
+            </form>
+          )}
+
+          {activeTab === "journeys" && (
+            <form onSubmit={handleCreateJourney}>
+              <h3 style={{ marginBottom: "1.25rem" }}>➕ Iniciar Jornada</h3>
+              
+              <div className="input-group">
+                <label className="label">Cliente Comprador</label>
+                <select 
+                  className="input"
+                  value={journeyForm.customerId}
+                  onChange={e => setJourneyForm({ ...journeyForm, customerId: e.target.value })}
+                  required
+                >
+                  <option value="">Selecione um cliente...</option>
+                  {customers.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="input-group">
+                <label className="label">Imóvel Escolhido</label>
+                <select 
+                  className="input"
+                  value={journeyForm.propertyId}
+                  onChange={e => setJourneyForm({ ...journeyForm, propertyId: e.target.value })}
+                >
+                  <option value="">Selecione um imóvel...</option>
+                  {properties.map(p => (
+                    <option key={p.id} value={p.id}>{p.title} - R$ {p.price.toLocaleString("pt-BR")}</option>
+                  ))}
+                </select>
+              </div>
+
+              <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Iniciar Fluxo</button>
+            </form>
+          )}
+        </div>
+      </div>
+
+      {/* Selected Journey Timeline Display */}
+      {selectedJourney && (
+        <section className="card animate-fade-in" style={{ padding: "2.5rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
+            <div>
+              <h3 style={{ fontSize: "1.5rem" }}>
+                📍 Timeline da Jornada: {customers.find(c => c.id === selectedJourney.customerId)?.name || "Cliente"}
+              </h3>
+              <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                ID da Jornada: {selectedJourney.id}
+              </p>
+            </div>
+            <span style={{
+              background: "rgba(99, 102, 241, 0.1)",
+              border: "1px solid var(--color-accent)",
+              color: "var(--color-accent)",
+              padding: "0.5rem 1rem",
+              borderRadius: "var(--radius-full)",
+              fontSize: "0.85rem",
+              fontWeight: "bold"
+            }}>
+              Status Atual: {selectedJourney.status}
+            </span>
+          </div>
+
+          {/* Timeline steps */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1.5rem" }}>
+            {getTimelineSteps(selectedJourney.status).map(step => (
               <div 
-                key={step.number} 
+                key={step.num}
                 className="card"
-                onClick={() => setActiveStep(idx)}
                 style={{
-                  background: isActive ? "rgba(99, 102, 241, 0.08)" : "var(--glass-bg)",
-                  borderColor: isActive ? "var(--color-accent)" : isCompleted ? "rgba(16, 185, 129, 0.3)" : "var(--glass-border)",
-                  cursor: "pointer",
+                  background: step.active ? "rgba(16, 185, 129, 0.05)" : "var(--glass-bg)",
+                  borderColor: step.active ? "var(--color-success)" : "var(--glass-border)",
                   padding: "1.25rem",
-                  transition: "all 0.3s ease"
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
                   <span style={{
                     width: "28px",
                     height: "28px",
@@ -119,62 +582,25 @@ export default function Home() {
                     justifyContent: "center",
                     fontSize: "0.85rem",
                     fontWeight: "bold",
-                    background: isActive 
-                      ? "var(--color-accent)" 
-                      : isCompleted 
-                        ? "var(--color-success)" 
-                        : "var(--bg-tertiary)",
+                    background: step.active ? "var(--color-success)" : "var(--bg-tertiary)",
                     color: "white"
                   }}>
-                    {isCompleted ? "✓" : step.number}
+                    {step.active ? "✓" : step.num}
                   </span>
                   <span style={{
                     fontSize: "0.75rem",
-                    fontWeight: "600",
-                    textTransform: "uppercase",
-                    color: isActive 
-                      ? "var(--color-accent)" 
-                      : isCompleted 
-                        ? "var(--color-success)" 
-                        : "var(--text-muted)"
+                    fontWeight: "bold",
+                    color: step.active ? "var(--color-success)" : "var(--text-muted)"
                   }}>
-                    {isActive ? "Em Foco" : isCompleted ? "Concluído" : "Aguardando"}
+                    {step.active ? "Concluído" : "Aguardando"}
                   </span>
                 </div>
-                <h4 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>{step.title}</h4>
-                <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: "1.4" }}>{step.desc}</p>
+                <h4 style={{ fontSize: "1rem" }}>{step.title}</h4>
               </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* System Features */}
-      <section style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2rem" }}>
-        <div className="card">
-          <h3 style={{ fontSize: "1.25rem", marginBottom: "1rem", color: "var(--color-accent)" }}>🤖 AI Engine Integrado</h3>
-          <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem", lineHeight: "1.6", marginBottom: "1rem" }}>
-            Mapeado com base no motor do PlantaAI, o `ai-engine` gerencia OCR de documentos, cálculo de compatibilidade, chatbot de atendimento e análise automatizada de risco.
-          </p>
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-            <span style={{ background: "var(--bg-tertiary)", padding: "0.25rem 0.75rem", borderRadius: "var(--radius-full)", fontSize: "0.8rem" }}>Python 3.12</span>
-            <span style={{ background: "var(--bg-tertiary)", padding: "0.25rem 0.75rem", borderRadius: "var(--radius-full)", fontSize: "0.8rem" }}>FastAPI</span>
-            <span style={{ background: "var(--bg-tertiary)", padding: "0.25rem 0.75rem", borderRadius: "var(--radius-full)", fontSize: "0.8rem" }}>RabbitMQ</span>
+            ))}
           </div>
-        </div>
-
-        <div className="card">
-          <h3 style={{ fontSize: "1.25rem", marginBottom: "1rem", color: "var(--color-secondary)" }}>🔒 Segurança Multitenant (RLS)</h3>
-          <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem", lineHeight: "1.6", marginBottom: "1rem" }}>
-            Isolamento total dos dados de clientes, imóveis e jornadas por imobiliária. O PostgreSQL 16 aplica Row Level Security no nível do banco de dados para proteção robusta.
-          </p>
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-            <span style={{ background: "var(--bg-tertiary)", padding: "0.25rem 0.75rem", borderRadius: "var(--radius-full)", fontSize: "0.8rem" }}>PostgreSQL 16</span>
-            <span style={{ background: "var(--bg-tertiary)", padding: "0.25rem 0.75rem", borderRadius: "var(--radius-full)", fontSize: "0.8rem" }}>Spring Modulith</span>
-            <span style={{ background: "var(--bg-tertiary)", padding: "0.25rem 0.75rem", borderRadius: "var(--radius-full)", fontSize: "0.8rem" }}>Keycloak</span>
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 }
