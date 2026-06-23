@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict KRscOPSgGcAwBh1DjleWOLHxQErotAd2IeK0cvy2fatzfWZ9rSiZjFmzEJ5cCQt
+\restrict NQd6LWD92gU5piBfx1su7TTq4qaVwXhcW4fE1fqvb90olGa8oE9kOjooFZaUt9j
 
 -- Dumped from database version 16.13
 -- Dumped by pg_dump version 16.13
@@ -388,6 +388,8 @@ COPY public.customers (id, tenant_id, name, email, phone, cpf, rg, marital_statu
 034fb7e7-a875-4f97-ba35-acedaa8cbdb5	00000000-0000-0000-0000-000000000001	Carlos Silva	carlos@example.com			\N	\N	8500.00	20000.00	{}	LEAD	\N	\N	2026-06-22 22:38:48.44487+00	2026-06-22 22:38:48.444871+00
 0987273a-4eeb-4b88-b0ef-d3c2ba60b53d	00000000-0000-0000-0000-000000000001	Mariana Souza	mariana@example.com			\N	\N	6000.00	20000.00	{}	LEAD	\N	\N	2026-06-22 22:50:07.042008+00	2026-06-22 22:50:07.042009+00
 a7c12042-cbba-4aba-b152-f40595367b11	00000000-0000-0000-0000-000000000001	Carlos Silva	carlos.silva.new@example.com			\N	\N	8500.00	20000.00	{}	LEAD	\N	\N	2026-06-22 23:01:06.747091+00	2026-06-22 23:01:06.747092+00
+00000000-0000-0000-0000-000000000030	00000000-0000-0000-0000-000000000003	João da Silva	joao.silva@gmail.com	11988887777	\N	\N	\N	6500.00	15000.00	{}	ACTIVE	\N	\N	2026-06-23 01:54:16.242494+00	2026-06-23 01:54:16.242494+00
+00000000-0000-0000-0000-000000000031	00000000-0000-0000-0000-000000000003	Maria Oliveira	maria.oliveira@outlook.com	11977776666	\N	\N	\N	8200.00	24000.00	{}	ACTIVE	\N	\N	2026-06-23 01:54:16.242494+00	2026-06-23 01:54:16.242494+00
 \.
 
 
@@ -421,6 +423,7 @@ COPY public.flyway_schema_history (installed_rank, version, description, type, s
 7	7	create finance notifications audit	SQL	V7__create_finance_notifications_audit.sql	252046850	imobflow	2026-06-22 22:37:50.084194	212	t
 8	8	seed tenants and brokers	SQL	V8__seed_tenants_and_brokers.sql	-439187599	imobflow	2026-06-22 22:37:50.310659	3	t
 9	9	force rls all tables	SQL	V9__force_rls_all_tables.sql	-985882474	imobflow	2026-06-22 22:37:50.327627	3	t
+10	10	seed wfj and jardim romano	SQL	V10__seed_wfj_and_jardim_romano.sql	487312145	imobflow	2026-06-23 01:54:16.230844	10	t
 \.
 
 
@@ -431,6 +434,8 @@ COPY public.flyway_schema_history (installed_rank, version, description, type, s
 COPY public.journeys (id, tenant_id, customer_id, property_id, broker_id, status, started_at, closed_at, created_at, updated_at) FROM stdin;
 ecda27c3-a714-40e1-afff-d9704ceb2d4e	00000000-0000-0000-0000-000000000001	034fb7e7-a875-4f97-ba35-acedaa8cbdb5	c84b3ad3-fb15-4bc0-8e62-123b0ab50c4c	00000000-0000-0000-0000-000000000009	FINANCING_APPROVED	2026-06-22 22:42:21.518478+00	\N	2026-06-22 22:42:21.519643+00	2026-06-22 22:42:54.264731+00
 6062c768-2142-4b8d-a65b-04c37a044862	00000000-0000-0000-0000-000000000001	a7c12042-cbba-4aba-b152-f40595367b11	ec6883a4-2ae6-4437-8d28-a1c288f3043b	00000000-0000-0000-0000-000000000009	FINANCING_APPROVED	2026-06-22 23:07:11.233591+00	\N	2026-06-22 23:07:11.234306+00	2026-06-22 23:08:20.472287+00
+00000000-0000-0000-0000-000000000040	00000000-0000-0000-0000-000000000003	00000000-0000-0000-0000-000000000030	00000000-0000-0000-0000-000000000020	00000000-0000-0000-0000-000000000007	STARTED	2026-06-23 01:54:16.242494+00	\N	2026-06-23 01:54:16.242494+00	2026-06-23 01:54:16.242494+00
+00000000-0000-0000-0000-000000000041	00000000-0000-0000-0000-000000000003	00000000-0000-0000-0000-000000000031	00000000-0000-0000-0000-000000000022	00000000-0000-0000-0000-000000000007	FINANCING_APPROVED	2026-06-23 01:54:16.242494+00	\N	2026-06-23 01:54:16.242494+00	2026-06-23 01:54:16.242494+00
 \.
 
 
@@ -462,6 +467,10 @@ white-label	White-Label	\N	149700	BRL	-1	-1	-1	{}	t
 COPY public.properties (id, tenant_id, title, type, status, address_street, address_number, address_complement, address_neighborhood, address_city, address_state, address_zip, latitude, longitude, area_total_m2, area_built_m2, bedrooms, bathrooms, parking_spots, price, condo_fee, iptu_annual, description, features, registration_number, created_at, updated_at) FROM stdin;
 c84b3ad3-fb15-4bc0-8e62-123b0ab50c4c	00000000-0000-0000-0000-000000000001	Apartamento Jardins	APARTMENT	AVAILABLE	\N	\N	\N	\N	São Paulo	\N	\N	\N	\N	\N	\N	2	\N	\N	650000.00	\N	\N	\N	[]	\N	2026-06-22 22:39:53.38453+00	2026-06-22 22:39:53.38453+00
 ec6883a4-2ae6-4437-8d28-a1c288f3043b	00000000-0000-0000-0000-000000000001	Apartamento Jardins	APARTMENT	AVAILABLE	\N	\N	\N	\N	São Paulo	\N	\N	\N	\N	\N	\N	2	\N	\N	650000.00	\N	\N	\N	[]	\N	2026-06-22 23:03:12.923502+00	2026-06-22 23:03:12.923503+00
+00000000-0000-0000-0000-000000000020	00000000-0000-0000-0000-000000000003	Casa de Condomínio - Jardim Romano	HOUSE	AVAILABLE	Rua Manuel Félix de Lima	142	\N	Jardim Romano	São Paulo	SP	08111-600	\N	\N	120.00	90.00	2	2	1	220000.00	\N	\N	Excelente casa de condomínio fechado, bem localizada no Jardim Romano, a poucos minutos a pé da Estação Jardim Romano da CPTM. Possui 2 dormitórios, sala aconchegante, cozinha americana e 1 vaga.	["Próximo ao trem", "Condomínio fechado", "Cozinha Americana"]	\N	2026-06-23 01:54:16.242494+00	2026-06-23 01:54:16.242494+00
+00000000-0000-0000-0000-000000000021	00000000-0000-0000-0000-000000000003	Sobrado Espaçoso - Jardim Romano	HOUSE	AVAILABLE	Avenida Tomás Lopes de Camargo	820	\N	Jardim Romano	São Paulo	SP	08111-590	\N	\N	200.00	160.00	3	3	2	350000.00	\N	\N	Sobrado amplo com 3 dormitórios (1 suíte), churrasqueira no quintal e vaga para 2 carros. Localizado em uma das principais avenidas do Jardim Romano com fácil acesso a mercados e transporte.	["Churrasqueira", "Suíte", "Quintal Grande", "Garagem"]	\N	2026-06-23 01:54:16.242494+00	2026-06-23 01:54:16.242494+00
+00000000-0000-0000-0000-000000000022	00000000-0000-0000-0000-000000000003	Apartamento Residencial Romano	APARTMENT	AVAILABLE	Rua José Álvares Moreira	300	\N	Jardim Romano	São Paulo	SP	08191-300	\N	\N	65.00	65.00	2	1	1	180000.00	\N	\N	Lindo apartamento com 2 quartos, sala de estar com sacada, área de lazer no condomínio com playground e salão de festas. Muito próximo à estação da CPTM Jardim Romano.	["Sacada", "Playground", "Salão de festas", "Próximo à estação"]	\N	2026-06-23 01:54:16.242494+00	2026-06-23 01:54:16.242494+00
+00000000-0000-0000-0000-000000000023	00000000-0000-0000-0000-000000000003	Terreno Comercial - Romano Central	LAND	AVAILABLE	Rua André Furtado de Mendonça	55	\N	Jardim Romano	São Paulo	SP	08111-650	\N	\N	250.00	0.00	0	0	0	150000.00	\N	\N	Terreno plano ideal para comércio ou construção de salão comercial, no coração do Jardim Romano. Próximo a comércios variados.	["Terreno plano", "Excelente localização comercial"]	\N	2026-06-23 01:54:16.242494+00	2026-06-23 01:54:16.242494+00
 \.
 
 
@@ -488,6 +497,7 @@ COPY public.subscriptions (id, tenant_id, stripe_subscription_id, stripe_custome
 COPY public.tenants (id, slug, name, custom_domain, branding_config, plan_id, email_sender, is_active, created_at, updated_at) FROM stdin;
 00000000-0000-0000-0000-000000000001	acme	Acme Real Estate	\N	{}	starter	\N	t	2026-06-22 22:37:50.312944+00	2026-06-22 22:37:50.312944+00
 00000000-0000-0000-0000-000000000002	imobcorp	ImobCorp SaaS	\N	{}	professional	\N	t	2026-06-22 22:37:50.312944+00	2026-06-22 22:37:50.312944+00
+00000000-0000-0000-0000-000000000003	wfj	WFJ Imóveis	\N	{}	professional	\N	t	2026-06-23 01:54:16.242494+00	2026-06-23 01:54:16.242494+00
 \.
 
 
@@ -506,6 +516,7 @@ COPY public.timeline_events (id, tenant_id, journey_id, type, title, description
 COPY public.users (id, tenant_id, keycloak_id, email, name, role, phone, avatar_url, creci, is_active, created_at, updated_at) FROM stdin;
 00000000-0000-0000-0000-000000000009	00000000-0000-0000-0000-000000000001	\N	broker1@acme.com	Broker Acme	BROKER	\N	\N	\N	t	2026-06-22 22:37:50.312944+00	2026-06-22 22:37:50.312944+00
 00000000-0000-0000-0000-000000000008	00000000-0000-0000-0000-000000000002	\N	broker2@imobcorp.com	Broker ImobCorp	BROKER	\N	\N	\N	t	2026-06-22 22:37:50.312944+00	2026-06-22 22:37:50.312944+00
+00000000-0000-0000-0000-000000000007	00000000-0000-0000-0000-000000000003	\N	contato@wfj.com.br	Broker WFJ	BROKER	\N	\N	\N	t	2026-06-23 01:54:16.242494+00	2026-06-23 01:54:16.242494+00
 \.
 
 
@@ -1244,5 +1255,5 @@ REVOKE USAGE ON SCHEMA public FROM PUBLIC;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict KRscOPSgGcAwBh1DjleWOLHxQErotAd2IeK0cvy2fatzfWZ9rSiZjFmzEJ5cCQt
+\unrestrict NQd6LWD92gU5piBfx1su7TTq4qaVwXhcW4fE1fqvb90olGa8oE9kOjooFZaUt9j
 

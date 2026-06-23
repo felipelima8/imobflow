@@ -6,6 +6,7 @@ import { api, Customer, Property, Journey } from "../lib/api";
 const TENANTS = [
   { id: "00000000-0000-0000-0000-000000000001", name: "Acme Real Estate (Tenant 1)" },
   { id: "00000000-0000-0000-0000-000000000002", name: "ImobCorp SaaS (Tenant 2)" },
+  { id: "00000000-0000-0000-0000-000000000003", name: "WFJ Imóveis (Tenant 3)" },
 ];
 
 export default function Home() {
@@ -63,7 +64,9 @@ export default function Home() {
       // Mock broker ID for demo purposes
       const mockBrokerId = tenant === "00000000-0000-0000-0000-000000000001"
         ? "00000000-0000-0000-0000-000000000009"
-        : "00000000-0000-0000-0000-000000000008";
+        : tenant === "00000000-0000-0000-0000-000000000002"
+        ? "00000000-0000-0000-0000-000000000008"
+        : "00000000-0000-0000-0000-000000000007";
       const journeyData = await api.journeys.list(mockBrokerId);
       const list = journeyData.content || [];
       setJourneys(list);
@@ -134,7 +137,9 @@ export default function Home() {
     try {
       const mockBrokerId = tenant === "00000000-0000-0000-0000-000000000001"
         ? "00000000-0000-0000-0000-000000000009"
-        : "00000000-0000-0000-0000-000000000008";
+        : tenant === "00000000-0000-0000-0000-000000000002"
+        ? "00000000-0000-0000-0000-000000000008"
+        : "00000000-0000-0000-0000-000000000007";
       const created = await api.journeys.create({
         customerId: journeyForm.customerId,
         propertyId: journeyForm.propertyId || undefined,
