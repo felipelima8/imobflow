@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict NQd6LWD92gU5piBfx1su7TTq4qaVwXhcW4fE1fqvb90olGa8oE9kOjooFZaUt9j
+\restrict upLkterG82J0KbjwqY7Q1nRrkiNnMKVcaGFAHG7EIhBVn7kNB1l4F6my9bwZglR
 
 -- Dumped from database version 16.13
 -- Dumped by pg_dump version 16.13
@@ -390,6 +390,8 @@ COPY public.customers (id, tenant_id, name, email, phone, cpf, rg, marital_statu
 a7c12042-cbba-4aba-b152-f40595367b11	00000000-0000-0000-0000-000000000001	Carlos Silva	carlos.silva.new@example.com			\N	\N	8500.00	20000.00	{}	LEAD	\N	\N	2026-06-22 23:01:06.747091+00	2026-06-22 23:01:06.747092+00
 00000000-0000-0000-0000-000000000030	00000000-0000-0000-0000-000000000003	João da Silva	joao.silva@gmail.com	11988887777	\N	\N	\N	6500.00	15000.00	{}	ACTIVE	\N	\N	2026-06-23 01:54:16.242494+00	2026-06-23 01:54:16.242494+00
 00000000-0000-0000-0000-000000000031	00000000-0000-0000-0000-000000000003	Maria Oliveira	maria.oliveira@outlook.com	11977776666	\N	\N	\N	8200.00	24000.00	{}	ACTIVE	\N	\N	2026-06-23 01:54:16.242494+00	2026-06-23 01:54:16.242494+00
+00000000-0000-0000-0000-000000000050	00000000-0000-0000-0000-000000000003	Felipe Lima	felipemjl08@gmail.com	11999998888	123.456.789-00	12.345.678-9	SOLTEIRO	12000.00	45000.00	{"type": "HOUSE", "max_price": 300000, "min_rooms": 2, "neighborhoods": ["Jardim Romano"]}	ACTIVE	INDICACAO	\N	2026-06-23 02:04:59.928655+00	2026-06-23 02:04:59.928655+00
+00000000-0000-0000-0000-000000000051	00000000-0000-0000-0000-000000000003	Roberto Mendes (Vendedor)	roberto.mendes@email.com	11988887766	987.654.321-00	\N	CASADO	8000.00	\N	{}	ACTIVE	CAPTACAO_DIRETA	\N	2026-06-23 02:04:59.928655+00	2026-06-23 02:04:59.928655+00
 \.
 
 
@@ -424,6 +426,7 @@ COPY public.flyway_schema_history (installed_rank, version, description, type, s
 8	8	seed tenants and brokers	SQL	V8__seed_tenants_and_brokers.sql	-439187599	imobflow	2026-06-22 22:37:50.310659	3	t
 9	9	force rls all tables	SQL	V9__force_rls_all_tables.sql	-985882474	imobflow	2026-06-22 22:37:50.327627	3	t
 10	10	seed wfj and jardim romano	SQL	V10__seed_wfj_and_jardim_romano.sql	487312145	imobflow	2026-06-23 01:54:16.230844	10	t
+11	11	seed felipe purchase journey	SQL	V11__seed_felipe_purchase_journey.sql	1595135018	imobflow	2026-06-23 02:04:59.90635	12	t
 \.
 
 
@@ -436,6 +439,7 @@ ecda27c3-a714-40e1-afff-d9704ceb2d4e	00000000-0000-0000-0000-000000000001	034fb7
 6062c768-2142-4b8d-a65b-04c37a044862	00000000-0000-0000-0000-000000000001	a7c12042-cbba-4aba-b152-f40595367b11	ec6883a4-2ae6-4437-8d28-a1c288f3043b	00000000-0000-0000-0000-000000000009	FINANCING_APPROVED	2026-06-22 23:07:11.233591+00	\N	2026-06-22 23:07:11.234306+00	2026-06-22 23:08:20.472287+00
 00000000-0000-0000-0000-000000000040	00000000-0000-0000-0000-000000000003	00000000-0000-0000-0000-000000000030	00000000-0000-0000-0000-000000000020	00000000-0000-0000-0000-000000000007	STARTED	2026-06-23 01:54:16.242494+00	\N	2026-06-23 01:54:16.242494+00	2026-06-23 01:54:16.242494+00
 00000000-0000-0000-0000-000000000041	00000000-0000-0000-0000-000000000003	00000000-0000-0000-0000-000000000031	00000000-0000-0000-0000-000000000022	00000000-0000-0000-0000-000000000007	FINANCING_APPROVED	2026-06-23 01:54:16.242494+00	\N	2026-06-23 01:54:16.242494+00	2026-06-23 01:54:16.242494+00
+00000000-0000-0000-0000-000000000060	00000000-0000-0000-0000-000000000003	00000000-0000-0000-0000-000000000050	00000000-0000-0000-0000-000000000025	00000000-0000-0000-0000-000000000007	CONTRACT_SIGNED	2026-06-10 10:00:00+00	\N	2026-06-23 02:04:59.928655+00	2026-06-23 02:04:59.928655+00
 \.
 
 
@@ -444,6 +448,9 @@ ecda27c3-a714-40e1-afff-d9704ceb2d4e	00000000-0000-0000-0000-000000000001	034fb7
 --
 
 COPY public.notifications (id, tenant_id, user_id, customer_id, channel, type, title, body, status, sent_at, read_at, created_at) FROM stdin;
+00000000-0000-0000-0000-000000000090	00000000-0000-0000-0000-000000000003	\N	00000000-0000-0000-0000-000000000050	WHATSAPP	JOURNEY_UPDATE	🎉 Contrato assinado com sucesso!	Olá Felipe! Seu contrato de compra do imóvel na Rua Cachoeira Tijuco, 215 foi assinado por ambas as partes. Acesse a plataforma para ver os próximos passos: pagamento do ITBI, escritura e registro.	SENT	\N	\N	2026-06-17 17:00:00+00
+00000000-0000-0000-0000-000000000091	00000000-0000-0000-0000-000000000003	\N	00000000-0000-0000-0000-000000000050	EMAIL	CLOSING_COSTS	💰 Resumo de custos para finalizar sua compra	Felipe, aqui está o resumo dos custos de fechamento do seu imóvel: ITBI: R$7.500 | Escritura: ~R$3.200 | Registro CRI: ~R$2.517 | Certidões: ~R$600 | Total estimado: ~R$13.817. A plataforma acompanha cada etapa com você!	SENT	\N	\N	2026-06-18 09:30:00+00
+00000000-0000-0000-0000-000000000092	00000000-0000-0000-0000-000000000003	\N	00000000-0000-0000-0000-000000000050	WHATSAPP	ACTION_REQUIRED	⏰ Ação necessária: Pagar ITBI até 01/07	Felipe, o próximo passo da sua jornada é o pagamento do ITBI (R$7.500). Acesse o link para gerar a guia DAMSP: https://itbi.prefeitura.sp.gov.br/. Prazo sugerido: 01/07/2026.	PENDING	\N	\N	2026-06-22 10:00:00+00
 \.
 
 
@@ -471,6 +478,7 @@ ec6883a4-2ae6-4437-8d28-a1c288f3043b	00000000-0000-0000-0000-000000000001	Aparta
 00000000-0000-0000-0000-000000000021	00000000-0000-0000-0000-000000000003	Sobrado Espaçoso - Jardim Romano	HOUSE	AVAILABLE	Avenida Tomás Lopes de Camargo	820	\N	Jardim Romano	São Paulo	SP	08111-590	\N	\N	200.00	160.00	3	3	2	350000.00	\N	\N	Sobrado amplo com 3 dormitórios (1 suíte), churrasqueira no quintal e vaga para 2 carros. Localizado em uma das principais avenidas do Jardim Romano com fácil acesso a mercados e transporte.	["Churrasqueira", "Suíte", "Quintal Grande", "Garagem"]	\N	2026-06-23 01:54:16.242494+00	2026-06-23 01:54:16.242494+00
 00000000-0000-0000-0000-000000000022	00000000-0000-0000-0000-000000000003	Apartamento Residencial Romano	APARTMENT	AVAILABLE	Rua José Álvares Moreira	300	\N	Jardim Romano	São Paulo	SP	08191-300	\N	\N	65.00	65.00	2	1	1	180000.00	\N	\N	Lindo apartamento com 2 quartos, sala de estar com sacada, área de lazer no condomínio com playground e salão de festas. Muito próximo à estação da CPTM Jardim Romano.	["Sacada", "Playground", "Salão de festas", "Próximo à estação"]	\N	2026-06-23 01:54:16.242494+00	2026-06-23 01:54:16.242494+00
 00000000-0000-0000-0000-000000000023	00000000-0000-0000-0000-000000000003	Terreno Comercial - Romano Central	LAND	AVAILABLE	Rua André Furtado de Mendonça	55	\N	Jardim Romano	São Paulo	SP	08111-650	\N	\N	250.00	0.00	0	0	0	150000.00	\N	\N	Terreno plano ideal para comércio ou construção de salão comercial, no coração do Jardim Romano. Próximo a comércios variados.	["Terreno plano", "Excelente localização comercial"]	\N	2026-06-23 01:54:16.242494+00	2026-06-23 01:54:16.242494+00
+00000000-0000-0000-0000-000000000025	00000000-0000-0000-0000-000000000003	Sobrado 3 Quartos - Rua Cachoeira Tijuco	HOUSE	RESERVED	Rua Cachoeira Tijuco	215	\N	Jardim Romano	São Paulo	SP	08111-620	\N	\N	180.00	130.00	3	2	1	250000.00	\N	\N	Sobrado bem conservado com 3 dormitórios (1 suíte), sala ampla, cozinha planejada, quintal com churrasqueira e 1 vaga de garagem. Documentação em dia, pronto para escriturar. Próximo à estação CPTM Jardim Romano e comércio local.	["Suíte", "Churrasqueira", "Cozinha planejada", "Quintal", "Próximo ao trem", "Documentação OK"]	MAT-123456-CRI-SP	2026-06-23 02:04:59.928655+00	2026-06-23 02:04:59.928655+00
 \.
 
 
@@ -479,6 +487,7 @@ ec6883a4-2ae6-4437-8d28-a1c288f3043b	00000000-0000-0000-0000-000000000001	Aparta
 --
 
 COPY public.proposals (id, tenant_id, journey_id, property_id, customer_id, offer_amount, conditions, status, valid_until, created_by, created_at, updated_at) FROM stdin;
+00000000-0000-0000-0000-000000000070	00000000-0000-0000-0000-000000000003	00000000-0000-0000-0000-000000000060	00000000-0000-0000-0000-000000000025	00000000-0000-0000-0000-000000000050	250000.00	{"seller_cpf": "987.654.321-00", "seller_name": "Roberto Mendes", "closing_costs": {"itbi_estimated": 7500.00, "total_estimated": 13817.00, "registro_estimated": 2517.00, "certidoes_estimated": 600.00, "escritura_estimated": 3200.00}, "seller_spouse": "Maria Aparecida Mendes", "payment_method": "CASH_FULL", "contract_clauses": ["Quitação integral no ato da escritura", "Vendedor se compromete a apresentar certidões negativas válidas", "Entrega das chaves em até 30 dias após registro", "Vendedor responsável por débitos de IPTU até a data da escritura"], "payment_description": "Pagamento à vista na quitação integral"}	ACCEPTED	\N	00000000-0000-0000-0000-000000000007	2026-06-23 02:04:59.928655+00	2026-06-23 02:04:59.928655+00
 \.
 
 
@@ -506,6 +515,15 @@ COPY public.tenants (id, slug, name, custom_domain, branding_config, plan_id, em
 --
 
 COPY public.timeline_events (id, tenant_id, journey_id, type, title, description, metadata, created_by, created_at) FROM stdin;
+00000000-0000-0000-0000-000000000080	00000000-0000-0000-0000-000000000003	00000000-0000-0000-0000-000000000060	LEAD_CAPTURED	Lead Capturado	Felipe Lima demonstrou interesse em imóveis no Jardim Romano, faixa de até R$300k.	{"source": "indicacao", "channel": "whatsapp"}	00000000-0000-0000-0000-000000000007	2026-06-10 10:00:00+00
+00000000-0000-0000-0000-000000000081	00000000-0000-0000-0000-000000000003	00000000-0000-0000-0000-000000000060	VISIT_SCHEDULED	Visita Agendada	Agendada visita ao Sobrado na Rua Cachoeira Tijuco, 215 para 12/06/2026 às 14h.	{"visit_date": "2026-06-12T14:00:00", "property_title": "Sobrado 3 Quartos - Rua Cachoeira Tijuco"}	00000000-0000-0000-0000-000000000007	2026-06-10 15:30:00+00
+00000000-0000-0000-0000-000000000082	00000000-0000-0000-0000-000000000003	00000000-0000-0000-0000-000000000060	VISIT_COMPLETED	Visita Realizada	Felipe visitou o imóvel e aprovou. Demonstrou interesse imediato em fazer proposta.	{"feedback": "Gostou muito da churrasqueira e da proximidade com o trem. Pediu detalhes de documentação."}	00000000-0000-0000-0000-000000000007	2026-06-12 16:00:00+00
+00000000-0000-0000-0000-000000000083	00000000-0000-0000-0000-000000000003	00000000-0000-0000-0000-000000000060	DUE_DILIGENCE	Análise Documental Concluída	Verificação automática: matrícula limpa, sem ônus, IPTU em dia, certidões do vendedor OK.	{"alerts": [], "risk_score": "GREEN", "iptu_status": "PAID", "matricula_status": "CLEAN", "seller_certidoes": "ALL_CLEAR"}	00000000-0000-0000-0000-000000000007	2026-06-13 10:00:00+00
+00000000-0000-0000-0000-000000000084	00000000-0000-0000-0000-000000000003	00000000-0000-0000-0000-000000000060	PROPOSAL_SENT	Proposta Enviada ao Vendedor	Proposta de R$250.000,00 (pagamento à vista) enviada ao proprietário Roberto Mendes.	{"offer_amount": 250000, "payment_method": "CASH_FULL"}	00000000-0000-0000-0000-000000000007	2026-06-14 09:00:00+00
+00000000-0000-0000-0000-000000000085	00000000-0000-0000-0000-000000000003	00000000-0000-0000-0000-000000000060	PROPOSAL_ACCEPTED	Proposta Aceita pelo Vendedor	Roberto Mendes aceitou a proposta de R$250.000,00. Próximo passo: elaboração do contrato de compra e venda.	{"accepted_at": "2026-06-15T11:00:00", "seller_response": "Aceito nas condições propostas"}	00000000-0000-0000-0000-000000000007	2026-06-15 11:00:00+00
+00000000-0000-0000-0000-000000000086	00000000-0000-0000-0000-000000000003	00000000-0000-0000-0000-000000000060	CONTRACT_GENERATED	Contrato de Compra e Venda Gerado	Contrato particular de compromisso de compra e venda gerado automaticamente pela plataforma com dados do comprador, vendedor e imóvel.	{"generated_by": "PLATFORM", "contract_type": "COMPROMISSO_COMPRA_VENDA", "template_version": "v2.1"}	00000000-0000-0000-0000-000000000007	2026-06-16 10:00:00+00
+00000000-0000-0000-0000-000000000087	00000000-0000-0000-0000-000000000003	00000000-0000-0000-0000-000000000060	CONTRACT_SIGNED	Contrato Assinado Digitalmente	Contrato assinado por ambas as partes via assinatura eletrônica avançada. Validade jurídica conforme Lei 14.063/2020.	{"audit_trail_id": "CS-2026-0617-ABC123", "signed_by_buyer": "2026-06-17T14:00:00", "signature_method": "CLICKSIGN", "signed_by_seller": "2026-06-17T16:30:00"}	00000000-0000-0000-0000-000000000007	2026-06-17 16:30:00+00
+00000000-0000-0000-0000-000000000088	00000000-0000-0000-0000-000000000003	00000000-0000-0000-0000-000000000060	CHECKLIST_UPDATED	📋 Próximos Passos após Contrato Assinado	A plataforma gerou automaticamente o checklist dos próximos passos para concretizar a transferência do imóvel.	{"next_steps": [{"step": 1, "title": "Pagar ITBI", "status": "PENDING", "deadline": "2026-07-01", "description": "Emitir guia DAMSP no portal da Prefeitura de SP e pagar o ITBI (3% = R$7.500,00). A plataforma gera o link direto.", "estimated_cost": 7500.00}, {"step": 2, "title": "Agendar Escritura Pública", "status": "PENDING", "deadline": "2026-07-10", "description": "Comparecer a um Tabelionato de Notas com comprador, vendedor (e cônjuge), RG, CPF, certidão de casamento do vendedor e comprovante de ITBI pago.", "estimated_cost": 3200.00}, {"step": 3, "title": "Lavrar Escritura Pública", "status": "PENDING", "deadline": "2026-07-15", "description": "O tabelião lavra a escritura definitiva de compra e venda. Ambas as partes assinam. É necessário apresentar certidões atualizadas (máx 30 dias).", "estimated_cost": 0}, {"step": 4, "title": "Registrar no CRI", "status": "PENDING", "deadline": "2026-07-20", "description": "Levar a escritura pública + comprovante de ITBI ao Cartório de Registro de Imóveis para averbação na matrícula. Prazo: 20-30 dias.", "estimated_cost": 2517.00}, {"step": 5, "title": "Receber Matrícula Atualizada", "status": "PENDING", "deadline": "2026-08-20", "description": "Após registro, solicitar nova matrícula com seu nome como proprietário. A transferência está concluída!", "estimated_cost": 60.00}, {"step": 6, "title": "Receber Chaves", "status": "PENDING", "deadline": "2026-09-01", "description": "Conforme contrato, o vendedor entrega as chaves em até 30 dias após o registro.", "estimated_cost": 0}], "total_closing_costs": 13277.00, "documents_required_buyer": ["RG", "CPF", "Comprovante de residência", "Certidão de estado civil", "Comprovante de pagamento ITBI"], "documents_required_seller": ["RG", "CPF", "Certidão de casamento", "Certidões negativas (cível, criminal, trabalhista, fiscal)", "Comprovante de quitação IPTU"], "documents_required_property": ["Matrícula atualizada (max 30 dias)", "Certidão de ônus reais", "Habite-se"]}	00000000-0000-0000-0000-000000000007	2026-06-18 09:00:00+00
 \.
 
 
@@ -1255,5 +1273,5 @@ REVOKE USAGE ON SCHEMA public FROM PUBLIC;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict NQd6LWD92gU5piBfx1su7TTq4qaVwXhcW4fE1fqvb90olGa8oE9kOjooFZaUt9j
+\unrestrict upLkterG82J0KbjwqY7Q1nRrkiNnMKVcaGFAHG7EIhBVn7kNB1l4F6my9bwZglR
 
