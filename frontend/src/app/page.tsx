@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { api, Customer, Property, Journey, TimelineEvent, Proposal, DocumentFile } from "../lib/api";
 
 const TENANTS = [
@@ -10,6 +11,7 @@ const TENANTS = [
 ];
 
 export default function Home() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<"customers" | "properties" | "journeys">("customers");
   const [tenant, setTenant] = useState("");
   const [apiStatus, setApiStatus] = useState<"loading" | "online" | "offline">("loading");
@@ -45,11 +47,26 @@ export default function Home() {
   // Initialize Tenant
   useEffect(() => {
     if (typeof window !== "undefined") {
+      const role = localStorage.getItem("userRole");
+      if (!role) {
+        router.push("/login");
+        return;
+      }
+      setUserRole(role as "broker" | "client");
+
       const stored = localStorage.getItem("imobflow_tenant_id") || TENANTS[0].id;
       setTenant(stored);
       localStorage.setItem("imobflow_tenant_id", stored);
+
+      if (role === "client") {
+        api.journeys.list("00000000-0000-0000-0000-000000000007").then(journeyList => {
+          const felipeJourney = journeyList.content?.find(j => j.id === "00000000-0000-0000-0000-000000000060");
+          if (felipeJourney) setSelectedJourney(felipeJourney);
+          else if (journeyList.content && journeyList.content.length > 0) setSelectedJourney(journeyList.content[0]);
+        }).catch(console.error);
+      }
     }
-  }, []);
+  }, [router]);
 
   // Fetch Data when Tenant or active tab changes
   useEffect(() => {
@@ -141,37 +158,10 @@ export default function Home() {
     setTimeout(() => setNotification(null), 4000);
   };
 
-  const handleTenantChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const nextTenant = e.target.value;
-    setTenant(nextTenant);
-    localStorage.setItem("imobflow_tenant_id", nextTenant);
-    showToast(`Tenant alterado para: ${TENANTS.find(t => t.id === nextTenant)?.name}`);
-  };
-
-  const handleRoleChange = async (role: "broker" | "client") => {
-    setUserRole(role);
-    if (role === "client") {
-      // Switch tenant to WFJ Imóveis (Tenant 3)
-      setTenant("00000000-0000-0000-0000-000000000003");
-      localStorage.setItem("imobflow_tenant_id", "00000000-0000-0000-0000-000000000003");
-      showToast("Acessando Portal do Cliente: Felipe Lima");
-      
-      try {
-        const journeyList = await api.journeys.list("00000000-0000-0000-0000-000000000007");
-        const felipeJourney = journeyList.content?.find(j => j.id === "00000000-0000-0000-0000-000000000060");
-        if (felipeJourney) {
-          setSelectedJourney(felipeJourney);
-        } else if (journeyList.content && journeyList.content.length > 0) {
-          setSelectedJourney(journeyList.content[0]);
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    } else {
-      showToast("Retornando ao Painel do Corretor");
-      setSelectedJourney(null);
-      refreshData();
-    }
+  const handleLogout = () => {
+    localStorage.removeItem("userRole");
+    localStorage.removeItem("imobflow_tenant_id");
+    router.push("/login");
   };
 
   const handleUploadDocument = async (e: React.ChangeEvent<HTMLInputElement>, title: string, type: string) => {
@@ -321,63 +311,17 @@ export default function Home() {
         {/* Role and Tenant Selector */}
         <div style={{ display: "flex", alignItems: "center", gap: "1.5rem", flexWrap: "wrap" }}>
           
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-            <span className="label">Ambiente / Persona</span>
-            <div style={{ display: "flex", background: "var(--bg-secondary)", borderRadius: "var(--radius-sm)", border: "1px solid var(--glass-border)", padding: "2px" }}>
-              <button 
-                onClick={() => handleRoleChange("broker")}
-                style={{
-                  background: userRole === "broker" ? "var(--color-accent)" : "none",
-                  border: "none",
-                  color: "white",
-                  padding: "0.4rem 0.8rem",
-                  borderRadius: "4px",
-                  fontSize: "0.8rem",
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                  transition: "all 0.2s ease"
-                }}
-              >
-                🧑‍💼 Corretor
-              </button>
-              <button 
-                onClick={() => handleRoleChange("client")}
-                style={{
-                  background: userRole === "client" ? "var(--color-accent)" : "none",
-                  border: "none",
-                  color: "white",
-                  padding: "0.4rem 0.8rem",
-                  borderRadius: "4px",
-                  fontSize: "0.8rem",
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                  transition: "all 0.2s ease"
-                }}
-              >
-                👤 Felipe (Cliente)
-              </button>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-            <span className="label">Selecione a Imobiliária (RLS Tenant)</span>
-            <select 
-              value={tenant} 
-              onChange={handleTenantChange}
-              style={{
-                background: "var(--bg-secondary)",
-                border: "1px solid var(--glass-border)",
-                color: "white",
-                padding: "0.5rem 1rem",
-                borderRadius: "var(--radius-sm)",
-                outline: "none",
-                cursor: "pointer"
-              }}
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", alignItems: "flex-end" }}>
+            <span className="label" style={{ marginBottom: "0.5rem" }}>
+              Logado como: <strong style={{ color: "white" }}>{userRole === "client" ? "Felipe (Cliente)" : "Corretor"}</strong>
+            </span>
+            <button 
+              onClick={handleLogout}
+              className="btn btn-secondary"
+              style={{ padding: "0.4rem 1rem", fontSize: "0.8rem", borderRadius: "var(--radius-sm)" }}
             >
-              {TENANTS.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
+              Sair / Logout
+            </button>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", alignSelf: "flex-end", height: "40px" }}>
