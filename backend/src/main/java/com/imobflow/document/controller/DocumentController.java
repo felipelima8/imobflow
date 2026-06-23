@@ -38,4 +38,20 @@ public class DocumentController {
     public ResponseEntity<List<DocumentDTO>> getJourneyDocuments(@PathVariable UUID journeyId) {
         return ResponseEntity.ok(documentService.getJourneyDocuments(journeyId));
     }
+
+    @GetMapping("/{documentId}/download")
+    public ResponseEntity<byte[]> downloadDocument(@PathVariable UUID documentId) throws IOException {
+        com.imobflow.document.model.Document doc = documentService.getDocumentById(documentId);
+        byte[] data = documentService.downloadDocument(documentId);
+
+        String mimeType = doc.getMimeType();
+        if (mimeType == null || mimeType.isEmpty()) {
+            mimeType = "application/octet-stream";
+        }
+
+        return ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_TYPE, mimeType)
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + doc.getTitle() + "\"")
+                .body(data);
+    }
 }

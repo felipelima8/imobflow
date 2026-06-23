@@ -187,6 +187,9 @@ export const api = {
         if (!res.ok) throw new Error("Upload failed");
         return res.json() as Promise<DocumentFile>;
       });
+    },
+    getDownloadUrl: (documentId: string) => {
+      return `${BASE_URL}/documents/${documentId}/download`;
     }
   }
 };

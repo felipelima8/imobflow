@@ -104,6 +104,43 @@ public class DocumentService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    public Document getDocumentById(UUID id) {
+        return documentRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Document not found"));
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] downloadDocument(UUID documentId) throws IOException {
+        Document doc = getDocumentById(documentId);
+        String path = doc.getFilePath();
+
+        if (path.startsWith("tenant_")) {
+            try {
+                return s3Client.getObjectAsBytes(b -> b.bucket(bucketName).key(path)).asByteArray();
+            } catch (Exception e) {
+                System.err.println("Failed to get from MinIO, trying local fallback: " + e.getMessage());
+                String filename = path.substring(path.lastIndexOf('/') + 1);
+                Path localFile = Paths.get("uploads").resolve(filename);
+                if (Files.exists(localFile)) {
+                    return Files.readAllBytes(localFile);
+                }
+                throw new IOException("File not found in S3 or local fallback");
+            }
+        } else {
+            Path localFile = Paths.get(path);
+            if (Files.exists(localFile)) {
+                return Files.readAllBytes(localFile);
+            }
+            String filename = localFile.getFileName().toString();
+            Path relativeFile = Paths.get("uploads").resolve(filename);
+            if (Files.exists(relativeFile)) {
+                return Files.readAllBytes(relativeFile);
+            }
+            throw new IOException("Local file not found at: " + path);
+        }
+    }
+
     private DocumentDTO convertToDTO(Document doc) {
         return new DocumentDTO(
                 doc.getId(),

@@ -1012,7 +1012,7 @@ export default function Home() {
                                   <button 
                                     className="btn btn-secondary" 
                                     style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
-                                    onClick={() => alert(`Visualizando documento: ${isUploaded.title}\nCaminho: ${isUploaded.filePath}\nStatus: ${isUploaded.status}`)}
+                                    onClick={() => window.open(api.documents.getDownloadUrl(isUploaded.id), "_blank")}
                                   >
                                     Visualizar
                                   </button>
