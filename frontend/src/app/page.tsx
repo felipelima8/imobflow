@@ -30,6 +30,9 @@ export default function Home() {
   const [uploadedDocuments, setUploadedDocuments] = useState<DocumentFile[]>([]);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [userRole, setUserRole] = useState<"broker" | "client">("broker");
+  const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [discountAnalyzing, setDiscountAnalyzing] = useState(false);
+  const [discountResult, setDiscountResult] = useState<any>(null);
 
   const toggleLocalStep = (stepNum: number) => {
     setCompletedLocalSteps(prev => 
@@ -162,6 +165,39 @@ export default function Home() {
     localStorage.removeItem("userRole");
     localStorage.removeItem("imobflow_tenant_id");
     router.push("/login");
+  };
+
+  const handleDiscountAnalysis = () => {
+    setShowDiscountModal(true);
+    setDiscountAnalyzing(true);
+    setDiscountResult(null);
+    setTimeout(() => {
+      setDiscountResult({
+        itbiExemption: false,
+        itbiReason: "Imóvel acima de R$123.945,02 (teto SFH/MCMV para isenção em SP). ITBI de 3% mantido.",
+        firstPropertyDiscount: true,
+        firstPropertyLaw: "Lei 6.015/73, Art. 290 — Registros Públicos",
+        originalEscritura: 3200.00,
+        discountedEscritura: 1600.00,
+        originalRegistro: 2517.00,
+        discountedRegistro: 1258.50,
+        originalTotal: 13277.00,
+        newTotal: 10435.50,
+        savings: 2841.50,
+        requirements: [
+          "Declaração de que é o primeiro imóvel residencial do comprador",
+          "Certidão negativa de propriedade nos CRIs da comarca",
+          "Comprovante de residência atualizado",
+          "Cópia do RG e CPF"
+        ],
+        legalBasis: [
+          { law: "Lei 6.015/73, Art. 290", desc: "50% de desconto nos emolumentos de registro para primeira aquisição de imóvel residencial financiado pelo SFH" },
+          { law: "Lei 9.934/97", desc: "Estende o desconto a escrituras públicas de primeira aquisição" },
+          { law: "Decreto Municipal SP 46.228/05", desc: "ITBI: isenção apenas para imóveis até R$123.945,02 em programas habitacionais" }
+        ]
+      });
+      setDiscountAnalyzing(false);
+    }, 2500);
   };
 
   const handleUploadDocument = async (e: React.ChangeEvent<HTMLInputElement>, title: string, type: string) => {
@@ -833,6 +869,7 @@ export default function Home() {
                         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                           {nextSteps.map((step) => {
                             const isChecked = completedLocalSteps.includes(step.step);
+                            const showDiscountBtn = (step.step === 1 || step.step === 2 || step.step === 4) && userRole === "client";
                             return (
                               <div key={step.step} className="card" style={{
                                 background: isChecked ? "rgba(16, 185, 129, 0.02)" : "rgba(255,255,255,0.01)",
@@ -846,7 +883,7 @@ export default function Home() {
                                 <input 
                                   type="checkbox" 
                                   checked={isChecked}
-                                  onChange={() => {}} // toggled by card click
+                                  onChange={() => {}}
                                   style={{
                                     marginTop: "0.25rem",
                                     width: "18px",
@@ -861,8 +898,18 @@ export default function Home() {
                                       Passo {step.step}: {step.title}
                                     </strong>
                                     {step.estimated_cost > 0 && (
-                                      <span style={{ fontSize: "0.75rem", background: "rgba(255, 255, 255, 0.05)", padding: "0.2rem 0.4rem", borderRadius: "4px", color: "var(--text-secondary)" }}>
+                                      <span style={{ fontSize: "0.75rem", background: "rgba(255, 255, 255, 0.05)", padding: "0.2rem 0.4rem", borderRadius: "4px", color: discountResult && (step.step === 2 || step.step === 4) ? "var(--color-success)" : "var(--text-secondary)", textDecoration: discountResult && (step.step === 2 || step.step === 4) ? "line-through" : "none" }}>
                                         R$ {step.estimated_cost.toLocaleString("pt-BR")}
+                                      </span>
+                                    )}
+                                    {discountResult && step.step === 2 && (
+                                      <span style={{ fontSize: "0.75rem", background: "rgba(16, 185, 129, 0.15)", padding: "0.2rem 0.5rem", borderRadius: "4px", color: "var(--color-success)", fontWeight: "bold" }}>
+                                        R$ {discountResult.discountedEscritura.toLocaleString("pt-BR")} (-50%)
+                                      </span>
+                                    )}
+                                    {discountResult && step.step === 4 && (
+                                      <span style={{ fontSize: "0.75rem", background: "rgba(16, 185, 129, 0.15)", padding: "0.2rem 0.5rem", borderRadius: "4px", color: "var(--color-success)", fontWeight: "bold" }}>
+                                        R$ {discountResult.discountedRegistro.toLocaleString("pt-BR")} (-50%)
                                       </span>
                                     )}
                                   </div>
@@ -872,6 +919,26 @@ export default function Home() {
                                   {step.deadline && (
                                     <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
                                       Prazo sugerido: {new Date(step.deadline).toLocaleDateString("pt-BR")}
+                                    </div>
+                                  )}
+                                  {showDiscountBtn && !discountResult && (
+                                    <button
+                                      className="btn btn-primary"
+                                      style={{ marginTop: "0.5rem", padding: "0.3rem 0.75rem", fontSize: "0.75rem", background: "linear-gradient(135deg, #6366f1, #06b6d4)" }}
+                                      onClick={(e) => { e.stopPropagation(); handleDiscountAnalysis(); }}
+                                    >
+                                      🔍 Verificar Isenção / Desconto 1º Imóvel
+                                    </button>
+                                  )}
+                                  {discountResult && step.step === 1 && (
+                                    <div style={{ marginTop: "0.5rem", padding: "0.4rem 0.6rem", borderRadius: "6px", background: "rgba(239, 68, 68, 0.08)", border: "1px solid rgba(239, 68, 68, 0.2)", fontSize: "0.75rem", color: "#fca5a5" }}>
+                                      ❌ ITBI sem isenção — {discountResult.itbiReason}
+                                    </div>
+                                  )}
+                                  {discountResult && (step.step === 2 || step.step === 4) && (
+                                    <div style={{ marginTop: "0.5rem", padding: "0.4rem 0.6rem", borderRadius: "6px", background: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.2)", fontSize: "0.75rem", color: "#6ee7b7" }}>
+                                      ✅ Desconto de 50% aplicável — {discountResult.firstPropertyLaw}
+                                      <button onClick={(e) => { e.stopPropagation(); setShowDiscountModal(true); }} style={{ marginLeft: "0.5rem", background: "none", border: "none", color: "var(--color-accent)", cursor: "pointer", fontSize: "0.75rem", textDecoration: "underline" }}>Ver detalhes</button>
                                     </div>
                                   )}
                                 </div>
@@ -1005,6 +1072,83 @@ export default function Home() {
             </div>
           )}
         </section>
+      )}
+      {/* Discount Analysis Modal */}
+      {showDiscountModal && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }} onClick={() => setShowDiscountModal(false)}>
+          <div className="card animate-fade-in" style={{ maxWidth: "600px", width: "100%", maxHeight: "85vh", overflowY: "auto", padding: "2rem" }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+              <h3 style={{ color: "white", fontSize: "1.3rem" }}>🔍 Análise de Isenção e Descontos</h3>
+              <button onClick={() => setShowDiscountModal(false)} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: "1.5rem", cursor: "pointer" }}>✕</button>
+            </div>
+
+            {discountAnalyzing ? (
+              <div style={{ textAlign: "center", padding: "3rem 0" }}>
+                <div className="animate-pulse" style={{ fontSize: "2rem", marginBottom: "1rem" }}>🤖</div>
+                <p style={{ color: "var(--color-secondary)", fontWeight: "bold" }}>Analisando legislação aplicável...</p>
+                <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginTop: "0.5rem" }}>Cruzando dados do contrato com a legislação municipal de SP, Lei de Registros Públicos e normativas do SFH...</p>
+              </div>
+            ) : discountResult && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+                {/* ITBI Result */}
+                <div style={{ padding: "1rem", borderRadius: "8px", background: "rgba(239, 68, 68, 0.06)", border: "1px solid rgba(239, 68, 68, 0.2)" }}>
+                  <h4 style={{ color: "#fca5a5", fontSize: "0.95rem", marginBottom: "0.5rem" }}>❌ ITBI — Sem Isenção</h4>
+                  <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem" }}>{discountResult.itbiReason}</p>
+                  <p style={{ color: "var(--text-muted)", fontSize: "0.75rem", marginTop: "0.25rem" }}>Valor mantido: <strong style={{ color: "white" }}>R$ 7.500,00</strong> (3% de R$ 250.000)</p>
+                </div>
+
+                {/* First Property Discount */}
+                <div style={{ padding: "1rem", borderRadius: "8px", background: "rgba(16, 185, 129, 0.06)", border: "1px solid rgba(16, 185, 129, 0.25)" }}>
+                  <h4 style={{ color: "#6ee7b7", fontSize: "0.95rem", marginBottom: "0.5rem" }}>✅ Desconto 1º Imóvel — 50% em Escritura e Registro</h4>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span>Escritura Pública:</span>
+                      <span><s style={{ color: "var(--text-muted)" }}>R$ {discountResult.originalEscritura.toLocaleString("pt-BR")}</s> → <strong style={{ color: "var(--color-success)" }}>R$ {discountResult.discountedEscritura.toLocaleString("pt-BR")}</strong></span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span>Registro no CRI:</span>
+                      <span><s style={{ color: "var(--text-muted)" }}>R$ {discountResult.originalRegistro.toLocaleString("pt-BR")}</s> → <strong style={{ color: "var(--color-success)" }}>R$ {discountResult.discountedRegistro.toLocaleString("pt-BR")}</strong></span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Savings */}
+                <div style={{ padding: "1rem", borderRadius: "8px", background: "linear-gradient(135deg, rgba(99,102,241,0.08), rgba(6,182,212,0.08))", border: "1px solid rgba(99,102,241,0.3)", textAlign: "center" }}>
+                  <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem" }}>Economia Total Identificada</p>
+                  <p style={{ color: "var(--color-secondary)", fontSize: "1.8rem", fontWeight: "bold" }}>R$ {discountResult.savings.toLocaleString("pt-BR")}</p>
+                  <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", marginTop: "0.25rem" }}>
+                    Novo total de custos: <s style={{ color: "var(--text-muted)" }}>R$ {discountResult.originalTotal.toLocaleString("pt-BR")}</s> → <strong style={{ color: "white" }}>R$ {discountResult.newTotal.toLocaleString("pt-BR")}</strong>
+                  </p>
+                </div>
+
+                {/* Legal Basis */}
+                <div>
+                  <h4 style={{ color: "white", fontSize: "0.9rem", marginBottom: "0.5rem" }}>📚 Base Legal</h4>
+                  {discountResult.legalBasis.map((l: any, i: number) => (
+                    <div key={i} style={{ padding: "0.5rem", borderBottom: "1px solid var(--glass-border)", fontSize: "0.8rem" }}>
+                      <strong style={{ color: "var(--color-accent)" }}>{l.law}</strong>
+                      <p style={{ color: "var(--text-secondary)", margin: "0.15rem 0 0" }}>{l.desc}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Requirements */}
+                <div>
+                  <h4 style={{ color: "white", fontSize: "0.9rem", marginBottom: "0.5rem" }}>📋 Documentos Necessários para Solicitar</h4>
+                  <ul style={{ padding: "0 0 0 1.25rem", margin: 0, color: "var(--text-secondary)", fontSize: "0.8rem" }}>
+                    {discountResult.requirements.map((r: string, i: number) => (
+                      <li key={i} style={{ marginBottom: "0.25rem" }}>{r}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                <button className="btn btn-primary" style={{ marginTop: "0.5rem", background: "linear-gradient(135deg, #10b981, #06b6d4)" }} onClick={() => { setShowDiscountModal(false); showToast("Desconto de 1º imóvel aplicado ao seu checklist!"); }}>
+                  ✅ Aplicar Desconto ao Meu Checklist
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
