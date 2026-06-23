@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { api, Customer, Property, Journey } from "../lib/api";
+import { api, Customer, Property, Journey, TimelineEvent, Proposal, DocumentFile } from "../lib/api";
 
 const TENANTS = [
   { id: "00000000-0000-0000-0000-000000000001", name: "Acme Real Estate (Tenant 1)" },
@@ -21,6 +21,19 @@ export default function Home() {
 
   // Selected Journey for Detail/Timeline View
   const [selectedJourney, setSelectedJourney] = useState<Journey | null>(null);
+  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
+  const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [completedLocalSteps, setCompletedLocalSteps] = useState<number[]>([]);
+  const [uploadedDocuments, setUploadedDocuments] = useState<DocumentFile[]>([]);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [userRole, setUserRole] = useState<"broker" | "client">("broker");
+
+  const toggleLocalStep = (stepNum: number) => {
+    setCompletedLocalSteps(prev => 
+      prev.includes(stepNum) ? prev.filter(s => s !== stepNum) : [...prev, stepNum]
+    );
+  };
 
   // Forms State
   const [customerForm, setCustomerForm] = useState({ name: "", email: "", phone: "", cpf: "", monthlyIncome: 5000, fgtsBalance: 20000 });
@@ -53,6 +66,42 @@ export default function Home() {
     refreshData();
   }, [tenant]);
 
+  // Load selected journey's timeline and proposals
+  useEffect(() => {
+    setCompletedLocalSteps([]);
+    if (!selectedJourney) {
+      setTimelineEvents([]);
+      setProposals([]);
+      setUploadedDocuments([]);
+      return;
+    }
+
+    const fetchJourneyDetails = async () => {
+      setLoadingDetails(true);
+      try {
+        const events = await api.journeys.getTimeline(selectedJourney.id);
+        // Let's sort them in ascending order of creation for the UI display, or descending depending on how we render.
+        // We will sort them by date (ascending) so the story unfolds naturally.
+        const sortedEvents = [...events].sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+        setTimelineEvents(sortedEvents);
+
+        const props = await api.journeys.getProposals(selectedJourney.id);
+        setProposals(props);
+
+        const docs = await api.documents.list(selectedJourney.id);
+        setUploadedDocuments(docs);
+      } catch (err) {
+        console.error("Error fetching journey details:", err);
+      } finally {
+        setLoadingDetails(false);
+      }
+    };
+
+    fetchJourneyDetails();
+  }, [selectedJourney]);
+
   const refreshData = async () => {
     try {
       const custData = await api.customers.list();
@@ -72,7 +121,13 @@ export default function Home() {
       setJourneys(list);
       
       if (list.length > 0) {
-        setSelectedJourney(list[0]);
+        setSelectedJourney((prev) => {
+          if (prev) {
+            const found = list.find((j) => j.id === prev.id);
+            if (found) return found;
+          }
+          return list[0];
+        });
       } else {
         setSelectedJourney(null);
       }
@@ -91,6 +146,48 @@ export default function Home() {
     setTenant(nextTenant);
     localStorage.setItem("imobflow_tenant_id", nextTenant);
     showToast(`Tenant alterado para: ${TENANTS.find(t => t.id === nextTenant)?.name}`);
+  };
+
+  const handleRoleChange = async (role: "broker" | "client") => {
+    setUserRole(role);
+    if (role === "client") {
+      // Switch tenant to WFJ Imóveis (Tenant 3)
+      setTenant("00000000-0000-0000-0000-000000000003");
+      localStorage.setItem("imobflow_tenant_id", "00000000-0000-0000-0000-000000000003");
+      showToast("Acessando Portal do Cliente: Felipe Lima");
+      
+      try {
+        const journeyList = await api.journeys.list("00000000-0000-0000-0000-000000000007");
+        const felipeJourney = journeyList.content?.find(j => j.id === "00000000-0000-0000-0000-000000000060");
+        if (felipeJourney) {
+          setSelectedJourney(felipeJourney);
+        } else if (journeyList.content && journeyList.content.length > 0) {
+          setSelectedJourney(journeyList.content[0]);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    } else {
+      showToast("Retornando ao Painel do Corretor");
+      setSelectedJourney(null);
+      refreshData();
+    }
+  };
+
+  const handleUploadDocument = async (e: React.ChangeEvent<HTMLInputElement>, title: string, type: string) => {
+    if (!selectedJourney || !e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    setUploadingFile(true);
+    try {
+      const uploaded = await api.documents.upload(selectedJourney.id, title, type, file);
+      setUploadedDocuments(prev => [...prev, uploaded]);
+      showToast("Documento enviado e processado com sucesso!");
+    } catch (err: any) {
+      console.error(err);
+      showToast("Erro ao enviar o documento. Tente novamente.", "error");
+    } finally {
+      setUploadingFile(false);
+    }
   };
 
   // Submit Customer
@@ -221,8 +318,47 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Tenant Selector & Status */}
+        {/* Role and Tenant Selector */}
         <div style={{ display: "flex", alignItems: "center", gap: "1.5rem", flexWrap: "wrap" }}>
+          
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+            <span className="label">Ambiente / Persona</span>
+            <div style={{ display: "flex", background: "var(--bg-secondary)", borderRadius: "var(--radius-sm)", border: "1px solid var(--glass-border)", padding: "2px" }}>
+              <button 
+                onClick={() => handleRoleChange("broker")}
+                style={{
+                  background: userRole === "broker" ? "var(--color-accent)" : "none",
+                  border: "none",
+                  color: "white",
+                  padding: "0.4rem 0.8rem",
+                  borderRadius: "4px",
+                  fontSize: "0.8rem",
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease"
+                }}
+              >
+                🧑‍💼 Corretor
+              </button>
+              <button 
+                onClick={() => handleRoleChange("client")}
+                style={{
+                  background: userRole === "client" ? "var(--color-accent)" : "none",
+                  border: "none",
+                  color: "white",
+                  padding: "0.4rem 0.8rem",
+                  borderRadius: "4px",
+                  fontSize: "0.8rem",
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease"
+                }}
+              >
+                👤 Felipe (Cliente)
+              </button>
+            </div>
+          </div>
+
           <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
             <span className="label">Selecione a Imobiliária (RLS Tenant)</span>
             <select 
@@ -258,356 +394,672 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Tabs */}
-      <div style={{ display: "flex", gap: "1rem", marginBottom: "2rem", borderBottom: "1px solid var(--glass-border)", paddingBottom: "0.5rem" }}>
-        {(["customers", "properties", "journeys"] as const).map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            style={{
-              background: "none",
-              border: "none",
-              color: activeTab === tab ? "var(--color-accent)" : "var(--text-secondary)",
-              fontSize: "1.1rem",
-              fontWeight: "600",
-              cursor: "pointer",
-              padding: "0.5rem 1rem",
-              borderBottom: activeTab === tab ? "2px solid var(--color-accent)" : "none",
-              textTransform: "capitalize",
-              transition: "all 0.2s ease"
-            }}
-          >
-            {tab === "customers" ? "Clientes (Leads)" : tab === "properties" ? "Imóveis" : "Jornadas"}
-          </button>
-        ))}
-      </div>
-
-      {/* Tab Contents */}
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "2rem", marginBottom: "3rem" }}>
-        
-        {/* Left Side: Table List */}
-        <div className="card">
-          {activeTab === "customers" && (
-            <div>
-              <h3 style={{ marginBottom: "1.5rem" }}>👥 Clientes Cadastrados</h3>
-              {customers.length === 0 ? (
-                <p style={{ color: "var(--text-secondary)" }}>Nenhum cliente cadastrado neste tenant.</p>
-              ) : (
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
-                    <thead>
-                      <tr style={{ borderBottom: "1px solid var(--glass-border)", color: "var(--text-secondary)" }}>
-                        <th style={{ padding: "0.75rem" }}>Nome</th>
-                        <th style={{ padding: "0.75rem" }}>E-mail</th>
-                        <th style={{ padding: "0.75rem" }}>Renda</th>
-                        <th style={{ padding: "0.75rem" }}>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {customers.map(c => (
-                        <tr key={c.id} style={{ borderBottom: "1px solid var(--glass-border)" }}>
-                          <td style={{ padding: "0.75rem", fontWeight: "600" }}>{c.name}</td>
-                          <td style={{ padding: "0.75rem", color: "var(--text-secondary)" }}>{c.email || "N/A"}</td>
-                          <td style={{ padding: "0.75rem" }}>R$ {c.monthlyIncome?.toLocaleString("pt-BR") || "0"}</td>
-                          <td style={{ padding: "0.75rem" }}>
-                            <span style={{
-                              background: "rgba(99, 102, 241, 0.15)",
-                              color: "var(--color-accent)",
-                              padding: "0.25rem 0.5rem",
-                              borderRadius: "4px",
-                              fontSize: "0.75rem"
-                            }}>{c.status}</span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeTab === "properties" && (
-            <div>
-              <h3 style={{ marginBottom: "1.5rem" }}>🏢 Imóveis Disponíveis</h3>
-              {properties.length === 0 ? (
-                <p style={{ color: "var(--text-secondary)" }}>Nenhum imóvel cadastrado neste tenant.</p>
-              ) : (
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
-                    <thead>
-                      <tr style={{ borderBottom: "1px solid var(--glass-border)", color: "var(--text-secondary)" }}>
-                        <th style={{ padding: "0.75rem" }}>Título</th>
-                        <th style={{ padding: "0.75rem" }}>Cidade</th>
-                        <th style={{ padding: "0.75rem" }}>Preço</th>
-                        <th style={{ padding: "0.75rem" }}>Tipo</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {properties.map(p => (
-                        <tr key={p.id} style={{ borderBottom: "1px solid var(--glass-border)" }}>
-                          <td style={{ padding: "0.75rem", fontWeight: "600" }}>{p.title}</td>
-                          <td style={{ padding: "0.75rem", color: "var(--text-secondary)" }}>{p.addressCity || "N/A"}</td>
-                          <td style={{ padding: "0.75rem" }}>R$ {p.price?.toLocaleString("pt-BR")}</td>
-                          <td style={{ padding: "0.75rem" }}>{p.type}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeTab === "journeys" && (
-            <div>
-              <h3 style={{ marginBottom: "1.5rem" }}>📍 Jornadas de Compra Ativas</h3>
-              {journeys.length === 0 ? (
-                <p style={{ color: "var(--text-secondary)" }}>Nenhuma jornada iniciada neste tenant.</p>
-              ) : (
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
-                    <thead>
-                      <tr style={{ borderBottom: "1px solid var(--glass-border)", color: "var(--text-secondary)" }}>
-                        <th style={{ padding: "0.75rem" }}>Cliente</th>
-                        <th style={{ padding: "0.75rem" }}>Imóvel ID</th>
-                        <th style={{ padding: "0.75rem" }}>Status</th>
-                        <th style={{ padding: "0.75rem" }}>Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {journeys.map(j => {
-                        const clientName = customers.find(c => c.id === j.customerId)?.name || j.customerId.substring(0, 8);
-                        return (
-                          <tr 
-                            key={j.id} 
-                            style={{ 
-                              borderBottom: "1px solid var(--glass-border)",
-                              background: selectedJourney?.id === j.id ? "rgba(99, 102, 241, 0.05)" : "transparent",
-                              cursor: "pointer"
-                            }}
-                            onClick={() => setSelectedJourney(j)}
-                          >
-                            <td style={{ padding: "0.75rem", fontWeight: "600" }}>{clientName}</td>
-                            <td style={{ padding: "0.75rem", color: "var(--text-secondary)" }}>{j.propertyId ? j.propertyId.substring(0, 8) : "Nenhum"}</td>
-                            <td style={{ padding: "0.75rem" }}>
-                              <span style={{
-                                background: j.status === "COMPLETED" ? "rgba(16, 185, 129, 0.15)" : "rgba(245, 158, 11, 0.15)",
-                                color: j.status === "COMPLETED" ? "var(--color-success)" : "var(--color-warning)",
-                                padding: "0.25rem 0.5rem",
-                                borderRadius: "4px",
-                                fontSize: "0.75rem",
-                                fontWeight: "bold"
-                              }}>{j.status}</span>
-                            </td>
-                            <td style={{ padding: "0.75rem" }}>
-                              <div style={{ display: "flex", gap: "0.5rem" }} onClick={e => e.stopPropagation()}>
-                                <button 
-                                  className="btn btn-secondary" 
-                                  style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
-                                  onClick={() => handleUpdateJourneyStatus(j.id, "FINANCING_APPROVED")}
-                                >
-                                  Aprovar
-                                </button>
-                                <button 
-                                  className="btn btn-primary" 
-                                  style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
-                                  onClick={() => handleUpdateJourneyStatus(j.id, "COMPLETED")}
-                                >
-                                  Finalizar
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Right Side: Action Forms */}
-        <div className="card">
-          {activeTab === "customers" && (
-            <form onSubmit={handleCreateCustomer}>
-              <h3 style={{ marginBottom: "1.25rem" }}>➕ Cadastrar Cliente</h3>
-              <div className="input-group">
-                <label className="label">Nome Completo</label>
-                <input 
-                  type="text" 
-                  className="input" 
-                  value={customerForm.name}
-                  onChange={e => setCustomerForm({ ...customerForm, name: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="input-group">
-                <label className="label">E-mail</label>
-                <input 
-                  type="email" 
-                  className="input" 
-                  value={customerForm.email}
-                  onChange={e => setCustomerForm({ ...customerForm, email: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="input-group">
-                <label className="label">Renda Mensal</label>
-                <input 
-                  type="number" 
-                  className="input" 
-                  value={customerForm.monthlyIncome}
-                  onChange={e => setCustomerForm({ ...customerForm, monthlyIncome: Number(e.target.value) })}
-                  required
-                />
-              </div>
-              <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Criar Cliente</button>
-            </form>
-          )}
-
-          {activeTab === "properties" && (
-            <form onSubmit={handleCreateProperty}>
-              <h3 style={{ marginBottom: "1.25rem" }}>➕ Cadastrar Imóvel</h3>
-              <div className="input-group">
-                <label className="label">Título do Imóvel</label>
-                <input 
-                  type="text" 
-                  className="input" 
-                  value={propertyForm.title}
-                  onChange={e => setPropertyForm({ ...propertyForm, title: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="input-group">
-                <label className="label">Preço de Venda</label>
-                <input 
-                  type="number" 
-                  className="input" 
-                  value={propertyForm.price}
-                  onChange={e => setPropertyForm({ ...propertyForm, price: Number(e.target.value) })}
-                  required
-                />
-              </div>
-              <div className="input-group">
-                <label className="label">Cidade</label>
-                <input 
-                  type="text" 
-                  className="input" 
-                  value={propertyForm.addressCity}
-                  onChange={e => setPropertyForm({ ...propertyForm, addressCity: e.target.value })}
-                  required
-                />
-              </div>
-              <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Cadastrar Imóvel</button>
-            </form>
-          )}
-
-          {activeTab === "journeys" && (
-            <form onSubmit={handleCreateJourney}>
-              <h3 style={{ marginBottom: "1.25rem" }}>➕ Iniciar Jornada</h3>
-              
-              <div className="input-group">
-                <label className="label">Cliente Comprador</label>
-                <select 
-                  className="input"
-                  value={journeyForm.customerId}
-                  onChange={e => setJourneyForm({ ...journeyForm, customerId: e.target.value })}
-                  required
-                >
-                  <option value="">Selecione um cliente...</option>
-                  {customers.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="input-group">
-                <label className="label">Imóvel Escolhido</label>
-                <select 
-                  className="input"
-                  value={journeyForm.propertyId}
-                  onChange={e => setJourneyForm({ ...journeyForm, propertyId: e.target.value })}
-                >
-                  <option value="">Selecione um imóvel...</option>
-                  {properties.map(p => (
-                    <option key={p.id} value={p.id}>{p.title} - R$ {p.price.toLocaleString("pt-BR")}</option>
-                  ))}
-                </select>
-              </div>
-
-              <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Iniciar Fluxo</button>
-            </form>
-          )}
-        </div>
-      </div>
-
-      {/* Selected Journey Timeline Display */}
-      {selectedJourney && (
-        <section className="card animate-fade-in" style={{ padding: "2.5rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
-            <div>
-              <h3 style={{ fontSize: "1.5rem" }}>
-                📍 Timeline da Jornada: {customers.find(c => c.id === selectedJourney.customerId)?.name || "Cliente"}
-              </h3>
-              <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                ID da Jornada: {selectedJourney.id}
-              </p>
-            </div>
-            <span style={{
-              background: "rgba(99, 102, 241, 0.1)",
-              border: "1px solid var(--color-accent)",
-              color: "var(--color-accent)",
-              padding: "0.5rem 1rem",
-              borderRadius: "var(--radius-full)",
-              fontSize: "0.85rem",
-              fontWeight: "bold"
-            }}>
-              Status Atual: {selectedJourney.status}
-            </span>
-          </div>
-
-          {/* Timeline steps */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1.5rem" }}>
-            {getTimelineSteps(selectedJourney.status).map(step => (
-              <div 
-                key={step.num}
-                className="card"
+      {userRole === "broker" ? (
+        <>
+          {/* Tabs */}
+          <div style={{ display: "flex", gap: "1rem", marginBottom: "2rem", borderBottom: "1px solid var(--glass-border)", paddingBottom: "0.5rem" }}>
+            {(["customers", "properties", "journeys"] as const).map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
                 style={{
-                  background: step.active ? "rgba(16, 185, 129, 0.05)" : "var(--glass-bg)",
-                  borderColor: step.active ? "var(--color-success)" : "var(--glass-border)",
-                  padding: "1.25rem",
+                  background: "none",
+                  border: "none",
+                  color: activeTab === tab ? "var(--color-accent)" : "var(--text-secondary)",
+                  fontSize: "1.1rem",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  padding: "0.5rem 1rem",
+                  borderBottom: activeTab === tab ? "2px solid var(--color-accent)" : "none",
+                  textTransform: "capitalize",
+                  transition: "all 0.2s ease"
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
-                  <span style={{
-                    width: "28px",
-                    height: "28px",
-                    borderRadius: "50%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "0.85rem",
-                    fontWeight: "bold",
-                    background: step.active ? "var(--color-success)" : "var(--bg-tertiary)",
-                    color: "white"
-                  }}>
-                    {step.active ? "✓" : step.num}
-                  </span>
-                  <span style={{
-                    fontSize: "0.75rem",
-                    fontWeight: "bold",
-                    color: step.active ? "var(--color-success)" : "var(--text-muted)"
-                  }}>
-                    {step.active ? "Concluído" : "Aguardando"}
-                  </span>
-                </div>
-                <h4 style={{ fontSize: "1rem" }}>{step.title}</h4>
-              </div>
+                {tab === "customers" ? "Clientes (Leads)" : tab === "properties" ? "Imóveis" : "Jornadas"}
+              </button>
             ))}
           </div>
+
+          {/* Tab Contents */}
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "2rem", marginBottom: "3rem" }}>
+            
+            {/* Left Side: Table List */}
+            <div className="card">
+              {activeTab === "customers" && (
+                <div>
+                  <h3 style={{ marginBottom: "1.5rem" }}>👥 Clientes Cadastrados</h3>
+                  {customers.length === 0 ? (
+                    <p style={{ color: "var(--text-secondary)" }}>Nenhum cliente cadastrado neste tenant.</p>
+                  ) : (
+                    <div style={{ overflowX: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+                        <thead>
+                          <tr style={{ borderBottom: "1px solid var(--glass-border)", color: "var(--text-secondary)" }}>
+                            <th style={{ padding: "0.75rem" }}>Nome</th>
+                            <th style={{ padding: "0.75rem" }}>E-mail</th>
+                            <th style={{ padding: "0.75rem" }}>Renda</th>
+                            <th style={{ padding: "0.75rem" }}>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {customers.map(c => (
+                            <tr key={c.id} style={{ borderBottom: "1px solid var(--glass-border)" }}>
+                              <td style={{ padding: "0.75rem", fontWeight: "600" }}>{c.name}</td>
+                              <td style={{ padding: "0.75rem", color: "var(--text-secondary)" }}>{c.email || "N/A"}</td>
+                              <td style={{ padding: "0.75rem" }}>R$ {c.monthlyIncome?.toLocaleString("pt-BR") || "0"}</td>
+                              <td style={{ padding: "0.75rem" }}>
+                                <span style={{
+                                  background: "rgba(99, 102, 241, 0.15)",
+                                  color: "var(--color-accent)",
+                                  padding: "0.25rem 0.5rem",
+                                  borderRadius: "4px",
+                                  fontSize: "0.75rem"
+                                }}>{c.status}</span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === "properties" && (
+                <div>
+                  <h3 style={{ marginBottom: "1.5rem" }}>🏢 Imóveis Disponíveis</h3>
+                  {properties.length === 0 ? (
+                    <p style={{ color: "var(--text-secondary)" }}>Nenhum imóvel cadastrado neste tenant.</p>
+                  ) : (
+                    <div style={{ overflowX: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+                        <thead>
+                          <tr style={{ borderBottom: "1px solid var(--glass-border)", color: "var(--text-secondary)" }}>
+                            <th style={{ padding: "0.75rem" }}>Título</th>
+                            <th style={{ padding: "0.75rem" }}>Cidade</th>
+                            <th style={{ padding: "0.75rem" }}>Preço</th>
+                            <th style={{ padding: "0.75rem" }}>Tipo</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {properties.map(p => (
+                            <tr key={p.id} style={{ borderBottom: "1px solid var(--glass-border)" }}>
+                              <td style={{ padding: "0.75rem", fontWeight: "600" }}>{p.title}</td>
+                              <td style={{ padding: "0.75rem", color: "var(--text-secondary)" }}>{p.addressCity || "N/A"}</td>
+                              <td style={{ padding: "0.75rem" }}>R$ {p.price?.toLocaleString("pt-BR")}</td>
+                              <td style={{ padding: "0.75rem" }}>{p.type}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === "journeys" && (
+                <div>
+                  <h3 style={{ marginBottom: "1.5rem" }}>📍 Jornadas de Compra Ativas</h3>
+                  {journeys.length === 0 ? (
+                    <p style={{ color: "var(--text-secondary)" }}>Nenhuma jornada iniciada neste tenant.</p>
+                  ) : (
+                    <div style={{ overflowX: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+                        <thead>
+                          <tr style={{ borderBottom: "1px solid var(--glass-border)", color: "var(--text-secondary)" }}>
+                            <th style={{ padding: "0.75rem" }}>Cliente</th>
+                            <th style={{ padding: "0.75rem" }}>Imóvel ID</th>
+                            <th style={{ padding: "0.75rem" }}>Status</th>
+                            <th style={{ padding: "0.75rem" }}>Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {journeys.map(j => {
+                            const clientName = customers.find(c => c.id === j.customerId)?.name || j.customerId.substring(0, 8);
+                            return (
+                              <tr 
+                                key={j.id} 
+                                style={{ 
+                                  borderBottom: "1px solid var(--glass-border)",
+                                  background: selectedJourney?.id === j.id ? "rgba(99, 102, 241, 0.05)" : "transparent",
+                                  cursor: "pointer"
+                                }}
+                                onClick={() => setSelectedJourney(j)}
+                              >
+                                <td style={{ padding: "0.75rem", fontWeight: "600" }}>{clientName}</td>
+                                <td style={{ padding: "0.75rem", color: "var(--text-secondary)" }}>{j.propertyId ? j.propertyId.substring(0, 8) : "Nenhum"}</td>
+                                <td style={{ padding: "0.75rem" }}>
+                                  <span style={{
+                                    background: j.status === "COMPLETED" ? "rgba(16, 185, 129, 0.15)" : "rgba(245, 158, 11, 0.15)",
+                                    color: j.status === "COMPLETED" ? "var(--color-success)" : "var(--color-warning)",
+                                    padding: "0.25rem 0.5rem",
+                                    borderRadius: "4px",
+                                    fontSize: "0.75rem",
+                                    fontWeight: "bold"
+                                  }}>{j.status}</span>
+                                </td>
+                                <td style={{ padding: "0.75rem" }}>
+                                  <div style={{ display: "flex", gap: "0.5rem" }} onClick={e => e.stopPropagation()}>
+                                    <button 
+                                      className="btn btn-secondary" 
+                                      style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
+                                      onClick={() => handleUpdateJourneyStatus(j.id, "FINANCING_APPROVED")}
+                                    >
+                                      Aprovar
+                                    </button>
+                                    <button 
+                                      className="btn btn-primary" 
+                                      style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
+                                      onClick={() => handleUpdateJourneyStatus(j.id, "COMPLETED")}
+                                    >
+                                      Finalizar
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Right Side: Action Forms */}
+            <div className="card">
+              {activeTab === "customers" && (
+                <form onSubmit={handleCreateCustomer}>
+                  <h3 style={{ marginBottom: "1.25rem" }}>➕ Cadastrar Cliente</h3>
+                  <div className="input-group">
+                    <label className="label">Nome Completo</label>
+                    <input 
+                      type="text" 
+                      className="input" 
+                      value={customerForm.name}
+                      onChange={e => setCustomerForm({ ...customerForm, name: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="input-group">
+                    <label className="label">E-mail</label>
+                    <input 
+                      type="email" 
+                      className="input" 
+                      value={customerForm.email}
+                      onChange={e => setCustomerForm({ ...customerForm, email: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="input-group">
+                    <label className="label">Renda Mensal</label>
+                    <input 
+                      type="number" 
+                      className="input" 
+                      value={customerForm.monthlyIncome}
+                      onChange={e => setCustomerForm({ ...customerForm, monthlyIncome: Number(e.target.value) })}
+                      required
+                    />
+                  </div>
+                  <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Criar Cliente</button>
+                </form>
+              )}
+
+              {activeTab === "properties" && (
+                <form onSubmit={handleCreateProperty}>
+                  <h3 style={{ marginBottom: "1.25rem" }}>➕ Cadastrar Imóvel</h3>
+                  <div className="input-group">
+                    <label className="label">Título do Imóvel</label>
+                    <input 
+                      type="text" 
+                      className="input" 
+                      value={propertyForm.title}
+                      onChange={e => setPropertyForm({ ...propertyForm, title: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="input-group">
+                    <label className="label">Preço de Venda</label>
+                    <input 
+                      type="number" 
+                      className="input" 
+                      value={propertyForm.price}
+                      onChange={e => setPropertyForm({ ...propertyForm, price: Number(e.target.value) })}
+                      required
+                    />
+                  </div>
+                  <div className="input-group">
+                    <label className="label">Cidade</label>
+                    <input 
+                      type="text" 
+                      className="input" 
+                      value={propertyForm.addressCity}
+                      onChange={e => setPropertyForm({ ...propertyForm, addressCity: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Cadastrar Imóvel</button>
+                </form>
+              )}
+
+              {activeTab === "journeys" && (
+                <form onSubmit={handleCreateJourney}>
+                  <h3 style={{ marginBottom: "1.25rem" }}>➕ Iniciar Jornada</h3>
+                  
+                  <div className="input-group">
+                    <label className="label">Cliente Comprador</label>
+                    <select 
+                      className="input"
+                      value={journeyForm.customerId}
+                      onChange={e => setJourneyForm({ ...journeyForm, customerId: e.target.value })}
+                      required
+                    >
+                      <option value="">Selecione um cliente...</option>
+                      {customers.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="input-group">
+                    <label className="label">Imóvel Escolhido</label>
+                    <select 
+                      className="input"
+                      value={journeyForm.propertyId}
+                      onChange={e => setJourneyForm({ ...journeyForm, propertyId: e.target.value })}
+                    >
+                      <option value="">Selecione um imóvel...</option>
+                      {properties.map(p => (
+                        <option key={p.id} value={p.id}>{p.title} - R$ {p.price.toLocaleString("pt-BR")}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>Iniciar Fluxo</button>
+                </form>
+              )}
+            </div>
+          </div>
+        </>
+      ) : (
+        /* Client Portal welcome banner */
+        <div className="card animate-fade-in" style={{ padding: "2.5rem", marginBottom: "2.5rem", background: "linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(6, 182, 212, 0.08))", borderColor: "rgba(99, 102, 241, 0.3)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1.5rem" }}>
+            <div>
+              <h2 style={{ fontSize: "2rem", color: "white", marginBottom: "0.5rem", fontFamily: "var(--font-title)" }}>Olá, Felipe Lima! 👋</h2>
+              <p style={{ color: "var(--text-secondary)", fontSize: "1.05rem" }}>
+                Seja bem-vindo ao seu portal de intermediação na <strong>WFJ Imóveis</strong>.
+              </p>
+              <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", marginTop: "0.5rem" }}>
+                Acompanhe o andamento da sua compra, envie os documentos para o cartório de notas e realize a quitação de forma segura.
+              </p>
+            </div>
+            <div style={{
+              background: "rgba(255,255,255,0.02)",
+              border: "1px solid var(--glass-border)",
+              borderRadius: "var(--radius-md)",
+              padding: "1rem",
+              textAlign: "center"
+            }}>
+              <span className="label" style={{ fontSize: "0.75rem" }}>Imóvel em Jardim Romano</span>
+              <div style={{ fontSize: "1.2rem", fontWeight: "bold", color: "white", marginTop: "0.25rem" }}>Casa Padrão</div>
+              <div style={{ color: "var(--color-secondary)", fontWeight: "bold", fontSize: "1.1rem" }}>R$ 250.000,00</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Selected Journey Detail Dashboard */}
+      {selectedJourney && (
+        <section className="card animate-fade-in" style={{ padding: "2.5rem", marginTop: "3rem" }}>
+          {/* Header of selected journey */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem", borderBottom: "1px solid var(--glass-border)", paddingBottom: "1.5rem", flexWrap: "wrap", gap: "1rem" }}>
+            <div>
+              <span className="label" style={{ color: "var(--color-accent)", fontSize: "0.8rem", fontWeight: "bold" }}>
+                Jornada de Compra Ativa
+              </span>
+              <h3 style={{ fontSize: "1.8rem", marginTop: "0.25rem" }}>
+                🏠 {customers.find(c => c.id === selectedJourney.customerId)?.name || "Cliente"}
+              </h3>
+              <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginTop: "0.25rem" }}>
+                Imóvel ID: <code style={{ color: "white" }}>{selectedJourney.propertyId || "Não especificado"}</code> | Corretor: {tenant === "00000000-0000-0000-0000-000000000003" ? "WFJ Corretor" : "Corretor Interno"}
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+              <select 
+                value={selectedJourney.status}
+                onChange={(e) => handleUpdateJourneyStatus(selectedJourney.id, e.target.value)}
+                style={{
+                  background: "var(--bg-secondary)",
+                  border: "1px solid var(--glass-border)",
+                  color: "white",
+                  padding: "0.5rem",
+                  borderRadius: "var(--radius-sm)",
+                  cursor: "pointer",
+                  fontSize: "0.85rem"
+                }}
+              >
+                <option value="STARTED">STARTED (Iniciada)</option>
+                <option value="ANALYSIS">ANALYSIS (Análise de Crédito)</option>
+                <option value="FINANCING_APPROVED">FINANCING_APPROVED (Aprovado)</option>
+                <option value="CONTRACT_SIGNED">CONTRACT_SIGNED (Contrato Assinado)</option>
+                <option value="COMPLETED">COMPLETED (Concluída)</option>
+              </select>
+              <span style={{
+                background: selectedJourney.status === "COMPLETED" ? "rgba(16, 185, 129, 0.15)" : "rgba(245, 158, 11, 0.15)",
+                border: selectedJourney.status === "COMPLETED" ? "1px solid var(--color-success)" : "1px solid var(--color-warning)",
+                color: selectedJourney.status === "COMPLETED" ? "var(--color-success)" : "var(--color-warning)",
+                padding: "0.5rem 1rem",
+                borderRadius: "var(--radius-full)",
+                fontSize: "0.85rem",
+                fontWeight: "bold"
+              }}>
+                {selectedJourney.status}
+              </span>
+            </div>
+          </div>
+
+          {loadingDetails ? (
+            <div style={{ padding: "4rem", textAlign: "center", color: "var(--text-secondary)" }}>
+              <div className="animate-pulse">Buscando dados da jornada no banco de dados...</div>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2.5rem", alignItems: "start" }}>
+              
+              {/* Left Column: Real Timeline of Events */}
+              <div>
+                <h4 style={{ fontSize: "1.2rem", marginBottom: "1.5rem", color: "white", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  📍 Histórico de Atividades
+                </h4>
+
+                {timelineEvents.length === 0 ? (
+                  <div style={{ padding: "2.5rem", background: "rgba(255,255,255,0.01)", border: "1px dashed var(--glass-border)", borderRadius: "var(--radius-md)", textAlign: "center", color: "var(--text-muted)" }}>
+                    Nenhuma atividade registrada na timeline para esta jornada.
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", position: "relative", paddingLeft: "1.5rem", borderLeft: "2px dashed var(--glass-border)" }}>
+                    {timelineEvents.map((event) => {
+                      let parsedMetadata: any = {};
+                      if (event.metadata) {
+                        try {
+                          parsedMetadata = typeof event.metadata === "string" ? JSON.parse(event.metadata) : event.metadata;
+                        } catch (e) {
+                          console.error("Error parsing metadata", e);
+                        }
+                      }
+
+                      return (
+                        <div key={event.id} style={{ position: "relative" }}>
+                          {/* Circle marker */}
+                          <div style={{
+                            position: "absolute",
+                            left: "-31px",
+                            top: "4px",
+                            width: "12px",
+                            height: "12px",
+                            borderRadius: "50%",
+                            background: event.type === "CHECKLIST_UPDATED" ? "var(--color-secondary)" : event.type === "CONTRACT_SIGNED" ? "var(--color-success)" : "var(--color-accent)",
+                            boxShadow: `0 0 10px ${event.type === "CHECKLIST_UPDATED" ? "var(--color-secondary)" : event.type === "CONTRACT_SIGNED" ? "var(--color-success)" : "var(--color-accent)"}`,
+                            border: "2px solid var(--bg-primary)"
+                          }} />
+                          
+                          <div className="card" style={{ background: "rgba(255,255,255,0.02)", padding: "1.25rem", border: "1px solid rgba(255,255,255,0.04)" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
+                              <h5 style={{ fontSize: "1rem", color: "white", fontWeight: "600" }}>{event.title}</h5>
+                              <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                                {new Date(event.createdAt).toLocaleDateString("pt-BR")} {new Date(event.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                            </div>
+                            <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>{event.description}</p>
+                            
+                            {/* Special content based on type */}
+                            {event.type === "DUE_DILIGENCE" && parsedMetadata.risk_score && (
+                              <div style={{ marginTop: "0.75rem", padding: "0.75rem", background: "rgba(16, 185, 129, 0.05)", borderRadius: "var(--radius-sm)", border: "1px solid rgba(16, 185, 129, 0.15)", fontSize: "0.8rem" }}>
+                                <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", justifyContent: "space-between" }}>
+                                  <span>🟢 Análise: <strong style={{ color: "var(--color-success)" }}>{parsedMetadata.risk_score}</strong></span>
+                                  <span>Matrícula: <strong>{parsedMetadata.matricula_status}</strong></span>
+                                  <span>IPTU: <strong>{parsedMetadata.iptu_status}</strong></span>
+                                  <span>Certidões: <strong>{parsedMetadata.seller_certidoes}</strong></span>
+                                </div>
+                              </div>
+                            )}
+
+                            {(event.type === "PROPOSAL_SENT" || event.type === "PROPOSAL_ACCEPTED") && parsedMetadata.offer_amount && (
+                              <div style={{ marginTop: "0.75rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                                <span style={{ background: "rgba(99, 102, 241, 0.15)", color: "var(--color-accent)", padding: "0.2rem 0.5rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: "bold" }}>
+                                  Valor: R$ {parsedMetadata.offer_amount.toLocaleString("pt-BR")}
+                                </span>
+                                <span style={{ background: "rgba(255,255,255,0.05)", padding: "0.2rem 0.5rem", borderRadius: "4px", fontSize: "0.75rem", color: "white" }}>
+                                  Método: {parsedMetadata.payment_method === "CASH_FULL" ? "À Vista" : parsedMetadata.payment_method}
+                                </span>
+                              </div>
+                            )}
+
+                            {event.type === "CONTRACT_SIGNED" && parsedMetadata.signature_method && (
+                              <div style={{ marginTop: "0.5rem", fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                                Assinado via: <strong>{parsedMetadata.signature_method}</strong> | Hash: <code>{parsedMetadata.audit_trail_id}</code>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: Intermediation, Checklist and Costs */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
+                
+                {/* 📋 Next Steps Checklist */}
+                {(() => {
+                  const checklistEvent = timelineEvents.find(e => e.type === "CHECKLIST_UPDATED");
+                  if (!checklistEvent) {
+                    return (
+                      <div className="card" style={{ textAlign: "center", padding: "2.5rem", color: "var(--text-muted)" }}>
+                        <h4 style={{ color: "white", marginBottom: "0.5rem" }}>📋 Fluxo de Intermediação</h4>
+                        O checklist interativo de quitação, ITBI, escritura e cartório estará disponível assim que a proposta for aceita e o contrato for assinado.
+                      </div>
+                    );
+                  }
+
+                  let nextSteps: any[] = [];
+                  let totalClosingCosts = 0;
+                  let docs: any = {};
+                  try {
+                    const meta = typeof checklistEvent.metadata === "string" ? JSON.parse(checklistEvent.metadata) : checklistEvent.metadata;
+                    nextSteps = meta.next_steps || [];
+                    totalClosingCosts = meta.total_closing_costs || 0;
+                    docs = {
+                      buyer: meta.documents_required_buyer || [],
+                      seller: meta.documents_required_seller || [],
+                      property: meta.documents_required_property || []
+                    };
+                  } catch (e) {
+                    console.error(e);
+                  }
+
+                  return (
+                    <>
+                      <div>
+                        <h4 style={{ fontSize: "1.2rem", marginBottom: "1rem", color: "white", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                          📋 Checklist de Quitação & Cartórios
+                        </h4>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                          {nextSteps.map((step) => {
+                            const isChecked = completedLocalSteps.includes(step.step);
+                            return (
+                              <div key={step.step} className="card" style={{
+                                background: isChecked ? "rgba(16, 185, 129, 0.02)" : "rgba(255,255,255,0.01)",
+                                borderColor: isChecked ? "rgba(16, 185, 129, 0.3)" : "var(--glass-border)",
+                                padding: "1rem",
+                                display: "flex",
+                                gap: "0.75rem",
+                                alignItems: "flex-start",
+                                cursor: "pointer"
+                              }} onClick={() => toggleLocalStep(step.step)}>
+                                <input 
+                                  type="checkbox" 
+                                  checked={isChecked}
+                                  onChange={() => {}} // toggled by card click
+                                  style={{
+                                    marginTop: "0.25rem",
+                                    width: "18px",
+                                    height: "18px",
+                                    accentColor: "var(--color-success)",
+                                    cursor: "pointer"
+                                  }}
+                                />
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
+                                    <strong style={{ fontSize: "0.95rem", color: isChecked ? "var(--text-muted)" : "white", textDecoration: isChecked ? "line-through" : "none" }}>
+                                      Passo {step.step}: {step.title}
+                                    </strong>
+                                    {step.estimated_cost > 0 && (
+                                      <span style={{ fontSize: "0.75rem", background: "rgba(255, 255, 255, 0.05)", padding: "0.2rem 0.4rem", borderRadius: "4px", color: "var(--text-secondary)" }}>
+                                        R$ {step.estimated_cost.toLocaleString("pt-BR")}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginTop: "0.25rem" }}>
+                                    {step.description}
+                                  </p>
+                                  {step.deadline && (
+                                    <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
+                                      Prazo sugerido: {new Date(step.deadline).toLocaleDateString("pt-BR")}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* 💰 Costs Box */}
+                      {totalClosingCosts > 0 && (
+                        <div className="card" style={{
+                          background: "linear-gradient(135deg, rgba(99, 102, 241, 0.04), rgba(6, 182, 212, 0.04))",
+                          borderColor: "rgba(99, 102, 241, 0.3)",
+                          padding: "1.25rem",
+                        }}>
+                          <h4 style={{ fontSize: "1.1rem", marginBottom: "0.75rem", color: "white" }}>
+                            💰 Despesas de Fechamento Estimadas
+                          </h4>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.85rem" }}>
+                            {nextSteps.filter(s => s.estimated_cost > 0).map(s => (
+                              <div key={s.step} style={{ display: "flex", justifyContent: "space-between", color: "var(--text-secondary)" }}>
+                                <span>{s.title}</span>
+                                <span>R$ {s.estimated_cost.toLocaleString("pt-BR")}</span>
+                              </div>
+                            ))}
+                            <hr style={{ border: "none", borderTop: "1px solid var(--glass-border)", margin: "0.5rem 0" }} />
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "1rem", fontWeight: "bold", color: "white" }}>
+                              <span>Custos Extras Estimados:</span>
+                              <span style={{ color: "var(--color-secondary)" }}>R$ {totalClosingCosts.toLocaleString("pt-BR")}</span>
+                            </div>
+                            <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.5rem", fontStyle: "italic" }}>
+                              * Valores oficiais para a comarca de São Paulo.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 📂 Gerenciador de Documentos */}
+                      <div className="card" style={{ padding: "1.5rem" }}>
+                        <h4 style={{ fontSize: "1.1rem", marginBottom: "0.75rem", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span>📂 Documentação para Transferência (Escritura)</span>
+                          {uploadingFile && <span style={{ fontSize: "0.75rem", color: "var(--color-secondary)" }} className="animate-pulse">Enviando...</span>}
+                        </h4>
+                        <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginBottom: "1rem" }}>
+                          Envie os arquivos necessários para a lavratura da escritura pública no Cartório de Notas.
+                        </p>
+
+                        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                          {[
+                            { label: "Contrato de Compra e Venda Assinado", type: "CONTRATO_COMPRA_VENDA" },
+                            { label: "RG e CPF do Comprador", type: "RG_CPF_COMPRADOR" },
+                            { label: "Comprovante de Estado Civil", type: "ESTADO_CIVIL_COMPRADOR" }
+                          ].map(docType => {
+                            const isUploaded = uploadedDocuments.find(d => d.type === docType.type);
+                            return (
+                              <div key={docType.type} style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                padding: "0.75rem 1rem",
+                                background: "rgba(255,255,255,0.02)",
+                                borderRadius: "var(--radius-sm)",
+                                border: "1px solid var(--glass-border)",
+                              }}>
+                                <div>
+                                  <div style={{ fontSize: "0.9rem", fontWeight: "600", color: isUploaded ? "var(--text-muted)" : "white" }}>
+                                    {isUploaded ? "✓ " : ""}{docType.label}
+                                  </div>
+                                  {isUploaded ? (
+                                    <span style={{ fontSize: "0.75rem", color: "var(--color-success)", fontWeight: "bold" }}>
+                                      🟢 Enviado em {new Date(isUploaded.createdAt).toLocaleDateString("pt-BR")}
+                                    </span>
+                                  ) : (
+                                    <span style={{ fontSize: "0.75rem", color: "var(--color-warning)" }}>
+                                      ⚠️ Pendente
+                                    </span>
+                                  )}
+                                </div>
+                                
+                                {isUploaded ? (
+                                  <button 
+                                    className="btn btn-secondary" 
+                                    style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
+                                    onClick={() => alert(`Visualizando documento: ${isUploaded.title}\nCaminho: ${isUploaded.filePath}\nStatus: ${isUploaded.status}`)}
+                                  >
+                                    Visualizar
+                                  </button>
+                                ) : (
+                                  <label className="btn btn-primary" style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem", cursor: "pointer", margin: 0 }}>
+                                    Enviar
+                                    <input 
+                                      type="file" 
+                                      accept=".pdf,.png,.jpg,.jpeg"
+                                      style={{ display: "none" }}
+                                      onChange={(e) => handleUploadDocument(e, docType.label, docType.type)}
+                                    />
+                                  </label>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {uploadedDocuments.length > 0 && (
+                          <div style={{ marginTop: "1rem", borderTop: "1px solid var(--glass-border)", paddingTop: "1rem" }}>
+                            <h5 style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "0.5rem" }}>
+                              Arquivos Recebidos pelo Cartório:
+                            </h5>
+                            <ul style={{ listStyleType: "none", padding: 0, margin: 0, fontSize: "0.8rem", color: "white" }}>
+                              {uploadedDocuments.map(doc => (
+                                <li key={doc.id} style={{ display: "flex", justifyContent: "space-between", padding: "0.25rem 0" }}>
+                                  <span style={{ textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", maxWidth: "250px" }}>
+                                    📄 {doc.title}
+                                  </span>
+                                  <span style={{ color: "var(--text-muted)" }}>
+                                    ({(doc.fileSize / 1024).toFixed(1)} KB)
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
+
+              </div>
+              
+            </div>
+          )}
         </section>
       )}
     </div>

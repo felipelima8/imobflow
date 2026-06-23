@@ -13,6 +13,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.imobflow.journey.dto.TimelineEventDTO;
+import com.imobflow.proposal.dto.ProposalDTO;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -68,5 +71,15 @@ public class JourneyController {
     public ResponseEntity<Void> deleteJourney(@PathVariable UUID id) {
         journeyService.deleteJourney(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}/timeline")
+    public ResponseEntity<List<TimelineEventDTO>> getJourneyTimeline(@PathVariable UUID id) {
+        return ResponseEntity.ok(journeyService.getTimelineEvents(id));
+    }
+
+    @GetMapping("/{id}/proposals")
+    public ResponseEntity<List<ProposalDTO>> getJourneyProposals(@PathVariable UUID id) {
+        return ResponseEntity.ok(journeyService.getProposals(id));
     }
 }

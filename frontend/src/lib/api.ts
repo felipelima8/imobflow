@@ -69,6 +69,47 @@ export interface Property {
   bedrooms?: number;
 }
 
+export interface TimelineEvent {
+  id: string;
+  tenantId: string;
+  journeyId: string;
+  type: string;
+  title: string;
+  description?: string;
+  metadata?: string; // JSON string
+  createdBy?: string;
+  createdAt: string;
+}
+
+export interface Proposal {
+  id: string;
+  tenantId: string;
+  journeyId: string;
+  propertyId: string;
+  customerId: string;
+  offerAmount: number;
+  conditions?: string; // JSON string
+  status: string;
+  validUntil?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DocumentFile {
+  id: string;
+  tenantId: string;
+  journeyId: string;
+  title: string;
+  type: string;
+  filePath: string;
+  fileSize: number;
+  status: string;
+  uploadedBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Journey {
   id: string;
   tenantId: string;
@@ -117,5 +158,35 @@ export const api = {
       apiFetch<Journey>(`/journeys/${id}/status?status=${status}`, {
         method: "PATCH",
       }),
+    getTimeline: (id: string) =>
+      apiFetch<TimelineEvent[]>(`/journeys/${id}/timeline`),
+    getProposals: (id: string) =>
+      apiFetch<Proposal[]>(`/journeys/${id}/proposals`),
+  },
+  documents: {
+    list: (journeyId: string) =>
+      apiFetch<DocumentFile[]>(`/documents/journey/${journeyId}`),
+    upload: (journeyId: string, title: string, type: string, file: File) => {
+      const formData = new FormData();
+      formData.append("journeyId", journeyId);
+      formData.append("title", title);
+      formData.append("type", type);
+      formData.append("file", file);
+      
+      const tenantId = typeof window !== "undefined" ? localStorage.getItem("imobflow_tenant_id") : null;
+      const headers: HeadersInit = {};
+      if (tenantId) {
+        headers["X-Tenant-ID"] = tenantId;
+      }
+      
+      return fetch(`http://localhost:8080/api/v1/documents/upload`, {
+        method: "POST",
+        headers,
+        body: formData
+      }).then(res => {
+        if (!res.ok) throw new Error("Upload failed");
+        return res.json() as Promise<DocumentFile>;
+      });
+    }
   }
 };
