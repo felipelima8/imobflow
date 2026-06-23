@@ -4,6 +4,8 @@ import com.imobflow.shared.model.BaseEntity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -41,6 +43,7 @@ public class Customer extends BaseEntity {
     private BigDecimal fgtsBalance;
 
     /** Desired property profile: {type, min_price, max_price, min_rooms, neighborhoods[]} */
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private String profile = "{}";
 

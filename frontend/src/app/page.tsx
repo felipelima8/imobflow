@@ -61,7 +61,9 @@ export default function Home() {
       setProperties(propData.content || []);
 
       // Mock broker ID for demo purposes
-      const mockBrokerId = "00000000-0000-0000-0000-000000000009";
+      const mockBrokerId = tenant === "00000000-0000-0000-0000-000000000001"
+        ? "00000000-0000-0000-0000-000000000009"
+        : "00000000-0000-0000-0000-000000000008";
       const journeyData = await api.journeys.list(mockBrokerId);
       const list = journeyData.content || [];
       setJourneys(list);
@@ -130,7 +132,9 @@ export default function Home() {
       return;
     }
     try {
-      const mockBrokerId = "00000000-0000-0000-0000-000000000009";
+      const mockBrokerId = tenant === "00000000-0000-0000-0000-000000000001"
+        ? "00000000-0000-0000-0000-000000000009"
+        : "00000000-0000-0000-0000-000000000008";
       const created = await api.journeys.create({
         customerId: journeyForm.customerId,
         propertyId: journeyForm.propertyId || undefined,
@@ -163,8 +167,8 @@ export default function Home() {
   const getTimelineSteps = (status: string) => {
     const steps = [
       { num: 1, title: "Jornada Iniciada", active: true },
-      { num: 2, title: "Análise Cadastral (IA)", active: ["ANALYSIS", "CREDIT_APPROVED", "COMPLETED"].includes(status) },
-      { num: 3, title: "Crédito Aprovado", active: ["CREDIT_APPROVED", "COMPLETED"].includes(status) },
+      { num: 2, title: "Análise Cadastral (IA)", active: ["ANALYSIS", "FINANCING_APPROVED", "COMPLETED"].includes(status) },
+      { num: 3, title: "Crédito Aprovado", active: ["FINANCING_APPROVED", "COMPLETED"].includes(status) },
       { num: 4, title: "Contrato Assinado", active: ["COMPLETED"].includes(status) },
     ];
     return steps;
@@ -396,7 +400,7 @@ export default function Home() {
                                 <button 
                                   className="btn btn-secondary" 
                                   style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
-                                  onClick={() => handleUpdateJourneyStatus(j.id, "CREDIT_APPROVED")}
+                                  onClick={() => handleUpdateJourneyStatus(j.id, "FINANCING_APPROVED")}
                                 >
                                   Aprovar
                                 </button>

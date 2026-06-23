@@ -1,30 +1,30 @@
-.PHONY: up down status backend frontend ai-engine test lint clean
+.PHONY: up down status backend frontend ai-engine test lint clean db-backup db-restore
 
 # ===========================
 # Docker Compose
 # ===========================
 
 up:
-	docker compose -f infra/docker-compose.dev.yml up -d
+	docker compose --env-file .env -f infra/docker-compose.dev.yml up -d
 	@echo "✅ All services started. Run 'make status' to check."
 
 down:
-	docker compose -f infra/docker-compose.dev.yml down
+	docker compose --env-file .env -f infra/docker-compose.dev.yml down
 
 down-clean:
-	docker compose -f infra/docker-compose.dev.yml down -v --remove-orphans
+	docker compose --env-file .env -f infra/docker-compose.dev.yml down -v --remove-orphans
 
 status:
-	docker compose -f infra/docker-compose.dev.yml ps
+	docker compose --env-file .env -f infra/docker-compose.dev.yml ps
 
 logs:
-	docker compose -f infra/docker-compose.dev.yml logs -f
+	docker compose --env-file .env -f infra/docker-compose.dev.yml logs -f
 
 logs-backend:
-	docker compose -f infra/docker-compose.dev.yml logs -f backend
+	docker compose --env-file .env -f infra/docker-compose.dev.yml logs -f backend
 
 logs-ai:
-	docker compose -f infra/docker-compose.dev.yml logs -f ai-engine
+	docker compose --env-file .env -f infra/docker-compose.dev.yml logs -f ai-engine
 
 # ===========================
 # Development
@@ -93,6 +93,19 @@ db-migrate:
 
 db-reset:
 	cd backend && ./mvnw flyway:clean flyway:migrate
+
+db-backup:
+	@mkdir -p infra/backup
+	docker compose --env-file .env -f infra/docker-compose.dev.yml exec -T postgres sh -c "PGPASSWORD=\$$POSTGRES_PASSWORD pg_dump -U \$$POSTGRES_USER \$$POSTGRES_DB" > infra/backup/backup_imobflow.sql
+	docker compose --env-file .env -f infra/docker-compose.dev.yml exec -T postgres sh -c "PGPASSWORD=\$$POSTGRES_PASSWORD pg_dump -U \$$POSTGRES_USER infrastructure_db" > infra/backup/backup_infrastructure.sql
+	@echo "✅ Database backups saved to infra/backup/"
+
+db-restore:
+	docker compose --env-file .env -f infra/docker-compose.dev.yml exec -T postgres sh -c "PGPASSWORD=\$$POSTGRES_PASSWORD psql -U \$$POSTGRES_USER -d \$$POSTGRES_DB -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'"
+	docker compose --env-file .env -f infra/docker-compose.dev.yml exec -T postgres sh -c "PGPASSWORD=\$$POSTGRES_PASSWORD psql -U \$$POSTGRES_USER -d \$$POSTGRES_DB" < infra/backup/backup_imobflow.sql
+	docker compose --env-file .env -f infra/docker-compose.dev.yml exec -T postgres sh -c "PGPASSWORD=\$$POSTGRES_PASSWORD psql -U \$$POSTGRES_USER -d infrastructure_db -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'"
+	docker compose --env-file .env -f infra/docker-compose.dev.yml exec -T postgres sh -c "PGPASSWORD=\$$POSTGRES_PASSWORD psql -U \$$POSTGRES_USER -d infrastructure_db" < infra/backup/backup_infrastructure.sql
+	@echo "✅ Database backups restored successfully"
 
 # ===========================
 # Cleanup

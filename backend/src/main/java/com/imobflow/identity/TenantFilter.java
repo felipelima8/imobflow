@@ -10,6 +10,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.util.UUID;
 
 /**
  * Servlet filter that resolves the current tenant from the request subdomain or header.
@@ -31,41 +32,39 @@ public class TenantFilter implements Filter {
             throws IOException, ServletException {
         try {
             HttpServletRequest httpRequest = (HttpServletRequest) request;
-            String tenantSlug = resolveTenantSlug(httpRequest);
-
-            if (tenantSlug != null) {
-                tenantRepository.findBySlug(tenantSlug).ifPresent(tenant -> {
-                    TenantContext.setCurrentTenantId(tenant.getId());
-                    log.debug("Tenant resolved: {} ({})", tenant.getSlug(), tenant.getId());
-                });
+            
+            // 1. Check X-Tenant-ID header
+            String headerTenant = httpRequest.getHeader("X-Tenant-ID");
+            if (headerTenant != null && !headerTenant.isBlank()) {
+                try {
+                    // Try parsing as UUID directly
+                    UUID tenantId = UUID.fromString(headerTenant);
+                    TenantContext.setCurrentTenantId(tenantId);
+                    log.debug("Tenant resolved from header UUID: {}", tenantId);
+                } catch (IllegalArgumentException e) {
+                    // If not a UUID, treat it as a slug
+                    tenantRepository.findBySlug(headerTenant).ifPresent(tenant -> {
+                        TenantContext.setCurrentTenantId(tenant.getId());
+                        log.debug("Tenant resolved from header slug: {} ({})", tenant.getSlug(), tenant.getId());
+                    });
+                }
+            } else {
+                // 2. Try resolving from subdomain slug
+                String host = httpRequest.getServerName();
+                if (host != null && host.contains(".")) {
+                    String subdomain = host.split("\\.")[0];
+                    if (!"localhost".equals(subdomain) && !"www".equals(subdomain) && !"api".equals(subdomain)) {
+                        tenantRepository.findBySlug(subdomain).ifPresent(tenant -> {
+                            TenantContext.setCurrentTenantId(tenant.getId());
+                            log.debug("Tenant resolved from subdomain: {} ({})", tenant.getSlug(), tenant.getId());
+                        });
+                    }
+                }
             }
 
             chain.doFilter(request, response);
         } finally {
             TenantContext.clear();
         }
-    }
-
-    /**
-     * Resolve tenant slug from subdomain or X-Tenant-ID header.
-     * Priority: Header > Subdomain
-     */
-    private String resolveTenantSlug(HttpServletRequest request) {
-        // 1. Check header (useful for development and API calls)
-        String headerTenant = request.getHeader("X-Tenant-ID");
-        if (headerTenant != null && !headerTenant.isBlank()) {
-            return headerTenant;
-        }
-
-        // 2. Extract from subdomain (e.g., "acme.imobflow.com.br")
-        String host = request.getServerName();
-        if (host != null && host.contains(".")) {
-            String subdomain = host.split("\\.")[0];
-            if (!"localhost".equals(subdomain) && !"www".equals(subdomain) && !"api".equals(subdomain)) {
-                return subdomain;
-            }
-        }
-
-        return null;
     }
 }

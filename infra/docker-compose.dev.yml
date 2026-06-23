@@ -25,6 +25,7 @@ services:
       SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: ${REDIS_PORT}
+      SPRING_MAIL_HOST: mailpit
       KEYCLOAK_URL: http://keycloak:8080
       KEYCLOAK_REALM: imobflow
       S3_ENDPOINT: http://minio:9000

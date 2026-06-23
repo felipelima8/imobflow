@@ -4,6 +4,8 @@ import com.imobflow.shared.model.BaseEntity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 
@@ -53,6 +55,7 @@ public class Property extends BaseEntity {
     private String description;
 
     /** Features array: ["pool", "gym", "balcony"] */
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private String features = "[]";
 
